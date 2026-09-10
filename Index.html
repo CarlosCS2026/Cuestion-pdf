@@ -5,11 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quiz desde PDF</title>
 
-<!-- PDF.js desde CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
-  /* ===== RESET Y BASE ===== */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -40,7 +38,6 @@
     font-size: 0.95rem;
   }
 
-  /* ===== ZONA DE SUBIDA ===== */
   .upload-zone {
     border: 3px dashed #a0aec0;
     border-radius: 16px;
@@ -92,7 +89,6 @@
     cursor: not-allowed;
   }
 
-  /* ===== LOADING ===== */
   #loading {
     display: none;
     text-align: center;
@@ -110,7 +106,6 @@
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ===== QUIZ ===== */
   #quizSection { display: none; }
 
   .progress-bar-container {
@@ -157,9 +152,7 @@
 
   .options { list-style: none; }
 
-  .options li {
-    margin-bottom: 10px;
-  }
+  .options li { margin-bottom: 10px; }
 
   .options label {
     display: flex;
@@ -198,7 +191,6 @@
     margin: 30px 0;
   }
 
-  /* ===== RESULTADOS ===== */
   #resultsSection { display: none; }
 
   .results-card {
@@ -259,7 +251,6 @@
     font-size: 0.9rem;
   }
 
-  /* ===== FORMATO AYUDA ===== */
   .format-help {
     background: #fff;
     border-radius: 12px;
@@ -286,7 +277,6 @@
     line-height: 1.5;
   }
 
-  /* ===== RESPONSIVE ===== */
   @media (max-width: 600px) {
     .container { padding: 12px; }
     .question-card { padding: 16px; }
@@ -302,10 +292,9 @@
   <h1>📝 Quiz desde PDF</h1>
   <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
 
-  <!-- ZONA DE SUBIDA -->
   <div id="uploadSection">
     <div class="upload-zone" id="dropZone">
-      <div class="icon">📄</div>
+      <div class="icon"></div>
       <p><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
       <p style="font-size:0.8rem; color:#999; margin-top:8px;">Formato: pregunta + 4 opciones (a-d) + respuesta correcta</p>
       <input type="file" id="fileInput" accept=".pdf">
@@ -331,20 +320,15 @@ b) 8
 c) 9
 d) 10
 Respuesta correcta: b
-
-(Se admiten variaciones: "Respuesta: c",
- "Solución: C", "Correcta: c", etc.)
       </pre>
     </details>
   </div>
 
-  <!-- LOADING -->
   <div id="loading">
     <div class="spinner"></div>
     <p>Leyendo PDF y generando preguntas…</p>
   </div>
 
-  <!-- QUIZ -->
   <div id="quizSection">
     <div class="progress-bar-container">
       <div class="progress-bar" id="progressBar"></div>
@@ -357,7 +341,6 @@ Respuesta correcta: b
     </div>
   </div>
 
-  <!-- RESULTADOS -->
   <div id="resultsSection">
     <div class="results-card">
       <div class="score-circle" id="scoreCircle">
@@ -376,13 +359,11 @@ Respuesta correcta: b
 </div>
 
 <script>
-  // Configurar worker de PDF.js
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
   let quizData = [];
 
-  // ===== DRAG & DROP =====
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
 
@@ -403,7 +384,6 @@ Respuesta correcta: b
     if (ev.target.files[0]) processFile(ev.target.files[0]);
   });
 
-  // ===== PROCESAR PDF =====
   async function processFile(file) {
     document.getElementById('uploadSection').style.display = 'none';
     document.getElementById('loading').style.display = 'block';
@@ -436,16 +416,10 @@ Respuesta correcta: b
     }
   }
 
-  // ===== PARSER DE PREGUNTAS =====
   function parseQuestions(text) {
     const questions = [];
-
-    // Normalizar espacios
     text = text.replace(/\s+/g, ' ').trim();
 
-    // Patrón flexible para encontrar bloques de pregunta
-    // Busca: "Pregunta N:" o "N." o "N)" al inicio, seguido de texto,
-    // luego opciones a) b) c) d), luego respuesta
     const regex =
       /(?:Pregunta\s*\d*\s*[:.]?\s*|\b(\d+)\s*[.):]\s*)([^a-dA-D]*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)(?:Respuesta\s*(?:correcta)?\s*[:.]?\s*([a-dA-D])|Soluci[oó]n\s*[:.]?\s*([a-dA-D])|Correcta\s*[:.]?\s*([a-dA-D]))/gi;
 
@@ -470,7 +444,6 @@ Respuesta correcta: b
       }
     }
 
-    // Si el regex complejo falla, intentar parser línea a línea
     if (questions.length === 0) {
       return parseLineByLine(text);
     }
@@ -487,7 +460,6 @@ Respuesta correcta: b
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // Detectar pregunta
       const qMatch = line.match(/(?:Pregunta\s*\d*\s*[:.]?\s*)?(.+?\?)\s*$/i) ||
                      line.match(/^\d+\s*[.):]\s*(.+)/);
       if (qMatch && !current) {
@@ -496,14 +468,12 @@ Respuesta correcta: b
       }
 
       if (current) {
-        // Detectar opciones
         const oMatch = line.match(/^([a-dA-D])\s*[.):]\s*(.+)/);
         if (oMatch) {
           current.options[oMatch[1].toLowerCase()] = oMatch[2].trim();
           continue;
         }
 
-        // Detectar respuesta
         const aMatch = line.match(/(?:Respuesta\s*(?:correcta)?|Soluci[oó]n|Correcta)\s*[:.]?\s*([a-dA-D])/i);
         if (aMatch) {
           current.correct = aMatch[1].toLowerCase();
@@ -515,7 +485,6 @@ Respuesta correcta: b
           continue;
         }
 
-        // Si la línea no encaja y ya tenemos pregunta, puede ser continuación
         if (!line.match(/^[a-dA-D]\s*[.):]/) &&
             !line.match(/Respuesta|Soluci[oó]n|Correcta/i) &&
             Object.keys(current.options).length === 0) {
@@ -527,7 +496,6 @@ Respuesta correcta: b
     return questions;
   }
 
-  // ===== RENDERIZAR QUIZ =====
   function renderQuiz() {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('quizSection').style.display = 'block';
@@ -562,14 +530,12 @@ Respuesta correcta: b
     return div.innerHTML;
   }
 
-  // ===== BARRA DE PROGRESO =====
   function updateProgress() {
     const answered = document.querySelectorAll('input[type="radio"]:checked').length;
     const pct = (answered / quizData.length) * 100;
     document.getElementById('progressBar').style.width = pct + '%';
   }
 
-  // ===== COMPROBAR RESPUESTAS =====
   function checkAnswers() {
     const answered = document.querySelectorAll('input[type="radio"]:checked').length;
     if (answered < quizData.length) {
@@ -601,7 +567,6 @@ Respuesta correcta: b
       reviewContainer.appendChild(card);
     });
 
-    // Mostrar resultados
     const pct = Math.round((score / quizData.length) * 100);
     document.getElementById('quizSection').style.display = 'none';
     document.getElementById('resultsSection').style.display = 'block';
@@ -613,7 +578,7 @@ Respuesta correcta: b
     document.getElementById('scoreMessage').textContent =
       pct >= 90 ? '🏆 ¡Excelente!' :
       pct >= 70 ? '👏 ¡Muy bien!' :
-      pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
+      pct >= 50 ? '👍 ¡Aprobado!' : ' Sigue practicando';
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
