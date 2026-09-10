@@ -92,15 +92,13 @@ Respuesta correcta: c
     <p>Leyendo PDF y generando preguntas…</p>
   </div>
 
-  <!-- SECCIÓN DE DIAGNÓSTICO (NUEVA) -->
   <div id="debugSection">
     <div class="format-help debug-box">
       <details open>
-        <summary>⚠️ Diagnóstico: Así está leyendo tu PDF el sistema</summary>
-        <p style="margin-top:10px;">El sistema no encontró preguntas. Copia el texto de abajo y pégalo en el chat para que pueda ajustar el código a tu formato exacto:</p>
+        <summary>⚠️ Diagnóstico: El sistema no pudo leer las preguntas</summary>
+        <p style="margin-top:10px;">Texto extraído:</p>
         <pre id="debugText"></pre>
-        <p style="margin-top:10px; color: #e63946;"><strong>Nota:</strong> Si el texto de arriba está vacío, tiene símbolos raros (como ) o no se puede seleccionar, tu PDF es una imagen escaneada y no contiene texto real.</p>
-        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;">🔄 Volver a intentar con otro PDF</button>
+        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;">🔄 Volver a intentar</button>
       </details>
     </div>
   </div>
@@ -167,7 +165,6 @@ Respuesta correcta: c
       quizData = parseQuestions(fullText);
 
       if (quizData.length === 0) {
-        // MOSTRAR DIAGNÓSTICO EN LUGAR DE ALERTA
         document.getElementById('loading').style.display = 'none';
         document.getElementById('debugSection').style.display = 'block';
         document.getElementById('debugText').textContent = fullText.length > 1500 ? fullText.substring(0, 1500) + '\n\n... (texto truncado)' : fullText;
@@ -184,44 +181,79 @@ Respuesta correcta: c
 
   function parseQuestions(text) {
     const questions = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    let currentQuestion = null;
-    let optionCount = 0;
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    let currentQ = null;
+    let pendingOptionLetter = null;
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const questionMatch = line.match(/^(?:Pregunta\s*\d*[:.]?\s*|Pregunta\s*\d+\s*[-.)]\s*)?(.+?)(?:\?|$)/i);
+      let line = lines[i];
+
+      // 1. Detectar inicio de pregunta
+      const isQuestionStart = line.match(/^(?:Pregunta\s*\d+[:.-]?\s*)?(.+?\?)\s*$/i) || 
+                              line.match(/^\d+[\s.:)]\s+(.+)/);
       
-      if (questionMatch && !line.match(/^[a-dA-D][.)]\s/)) {
-        if (currentQuestion && currentQuestion.options && Object.keys(currentQuestion.options).length >= 2 && currentQuestion.correct) {
-          questions.push(currentQuestion);
+      if (isQuestionStart && !line.match(/^[a-dA-D][.)]/i)) {
+        if (currentQ && currentQ.correct) {
+          questions.push(currentQ);
         }
-        currentQuestion = { id: questions.length, question: questionMatch[1].trim(), options: {}, correct: null };
-        optionCount = 0;
+        currentQ = {
+          id: questions.length,
+          question: (isQuestionStart[1] || isQuestionStart[0]).trim(),
+          options: {},
+          correct: null
+        };
+        pendingOptionLetter = null;
         continue;
       }
 
-      const optionMatch = line.match(/^([a-dA-D])[.)]\s*(.+)/);
-      if (optionMatch && currentQuestion) {
-        currentQuestion.options[optionMatch[1].toLowerCase()] = optionMatch[2].trim();
-        optionCount++;
+      if (!currentQ) continue;
+
+      // 2. Manejar opciones partidas: "a" en una línea, ") Barcelona" en la siguiente
+      if (pendingOptionLetter && line.match(/^[.)]\s*(.*)/)) {
+        currentQ.options[pendingOptionLetter] = line.match(/^[.)]\s*(.*)/)[1].trim();
+        pendingOptionLetter = null;
         continue;
       }
 
+      // 3. Manejar opciones normales: "a) Barcelona" o "a. Barcelona"
+      const optionMatch = line.match(/^([a-dA-D])\s*[.)]\s*(.+)/);
+      if (optionMatch) {
+        pendingOptionLetter = optionMatch[1].toLowerCase();
+        currentQ.options[pendingOptionLetter] = optionMatch[2].trim();
+        continue;
+      }
+
+      // 4. Manejar letra suelta: "a", "b", "c", "d" (esperando a la siguiente línea)
+      if (line.match(/^[a-dA-D]$/)) {
+        pendingOptionLetter = line.toLowerCase();
+        continue;
+      }
+
+      // 5. Detectar respuesta correcta
       const answerMatch = line.match(/(?:Respuesta\s*(?:correcta)?|Soluci[oó]n|Correcta|Resp)\s*[:.)]?\s*([a-dA-D])/i);
-      if (answerMatch && currentQuestion) {
-        currentQuestion.correct = answerMatch[1].toLowerCase();
+      if (answerMatch) {
+        currentQ.correct = answerMatch[1].toLowerCase();
         continue;
       }
 
-      if (currentQuestion && optionCount === 0 && !line.match(/^[a-dA-D][.)]/) && !line.match(/Respuesta|Soluci[oó]n|Correcta/i)) {
-        currentQuestion.question += ' ' + line;
+      // 6. Manejar continuación de texto (ej: "Saturn" \n "o" o texto de pregunta que sigue)
+      if (pendingOptionLetter && currentQ.options[pendingOptionLetter]) {
+        currentQ.options[pendingOptionLetter] += ' ' + line;
+        continue;
+      }
+      
+      if (Object.keys(currentQ.options).length === 0 && !pendingOptionLetter) {
+        currentQ.question += ' ' + line;
+        continue;
       }
     }
 
-    if (currentQuestion && currentQuestion.options && Object.keys(currentQuestion.options).length >= 2 && currentQuestion.correct) {
-      questions.push(currentQuestion);
+    // Añadir la última pregunta si es válida
+    if (currentQ && currentQ.correct && Object.keys(currentQ.options).length >= 2) {
+      questions.push(currentQ);
     }
+
     return questions;
   }
 
@@ -265,40 +297,4 @@ Respuesta correcta: c
 
   function checkAnswers() {
     const answered = document.querySelectorAll('input[type="radio"]:checked').length;
-    if (answered < quizData.length && !confirm(`Has respondido ${answered} de ${quizData.length}. ¿Enviar?`)) return;
-
-    let score = 0;
-    const reviewContainer = document.getElementById('reviewContainer');
-    reviewContainer.innerHTML = '';
-
-    quizData.forEach((q, i) => {
-      const selected = document.querySelector(`input[name="q${q.id}"]:checked`);
-      const userAnswer = selected ? selected.value : null;
-      const isCorrect = userAnswer === q.correct;
-      if (isCorrect) score++;
-
-      const card = document.createElement('div');
-      card.className = `review-card ${isCorrect ? 'correct' : 'wrong'}`;
-      card.innerHTML = `
-        <span class="tag ${isCorrect ? 'correct-tag' : 'wrong-tag'}">${isCorrect ? '✅ Correcta' : '❌ Incorrecta'}</span>
-        <h4 style="margin:8px 0 6px;">${i + 1}. ${escapeHtml(q.question)}</h4>
-        <p>Tu respuesta: <strong>${userAnswer ? userAnswer.toUpperCase() + ') ' + escapeHtml(q.options[userAnswer] || '') : 'Sin responder'}</strong></p>
-        ${!isCorrect ? `<p class="correct-answer-text">✔ Respuesta correcta: ${q.correct.toUpperCase()}) ${escapeHtml(q.options[q.correct] || '')}</p>` : ''}
-      `;
-      reviewContainer.appendChild(card);
-    });
-
-    const pct = Math.round((score / quizData.length) * 100);
-    document.getElementById('quizSection').style.display = 'none';
-    document.getElementById('resultsSection').style.display = 'block';
-
-    const circle = document.getElementById('scoreCircle');
-    circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
-    document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
-    document.getElementById('scoreLabel').textContent = `${pct}%`;
-    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-</script>
-</body>
-</html>
+    if (answered < quizData.length && !confirm(`Has respondido ${answered} de ${quizData.length}. ¿Enviar?`
