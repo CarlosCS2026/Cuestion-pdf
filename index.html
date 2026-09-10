@@ -4,286 +4,60 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quiz desde PDF</title>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: #f0f2f5;
-    color: #1a1a2e;
-    line-height: 1.6;
-    min-height: 100vh;
-  }
-
-  .container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
-  }
-
-  h1 {
-    text-align: center;
-    margin: 20px 0 10px;
-    font-size: clamp(1.5rem, 4vw, 2.2rem);
-    color: #16213e;
-  }
-
-  .subtitle {
-    text-align: center;
-    color: #666;
-    margin-bottom: 30px;
-    font-size: 0.95rem;
-  }
-
-  .upload-zone {
-    border: 3px dashed #a0aec0;
-    border-radius: 16px;
-    padding: 40px 20px;
-    text-align: center;
-    background: #fff;
-    transition: all 0.3s;
-    cursor: pointer;
-  }
-
-  .upload-zone:hover, .upload-zone.dragover {
-    border-color: #4361ee;
-    background: #eef1ff;
-  }
-
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f0f2f5; color: #1a1a2e; line-height: 1.6; min-height: 100vh; }
+  .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+  h1 { text-align: center; margin: 20px 0 10px; font-size: clamp(1.5rem, 4vw, 2.2rem); color: #16213e; }
+  .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.95rem; }
+  .upload-zone { border: 3px dashed #a0aec0; border-radius: 16px; padding: 40px 20px; text-align: center; background: #fff; transition: all 0.3s; cursor: pointer; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: #4361ee; background: #eef1ff; }
   .upload-zone .icon { font-size: 3rem; margin-bottom: 10px; }
-
   .upload-zone p { color: #555; }
-
   #fileInput { display: none; }
-
-  .btn {
-    display: inline-block;
-    padding: 12px 28px;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-primary {
-    background: #4361ee;
-    color: #fff;
-  }
-
+  .btn { display: inline-block; padding: 12px 28px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .btn-primary { background: #4361ee; color: #fff; }
   .btn-primary:hover { background: #3a56d4; }
-
-  .btn-success {
-    background: #2ec4b6;
-    color: #fff;
-  }
-
+  .btn-success { background: #2ec4b6; color: #fff; }
   .btn-success:hover { background: #27b0a3; }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  #loading {
-    display: none;
-    text-align: center;
-    padding: 30px;
-  }
-
-  .spinner {
-    width: 40px; height: 40px;
-    border: 4px solid #e0e0e0;
-    border-top-color: #4361ee;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 15px;
-  }
-
+  #loading { display: none; text-align: center; padding: 30px; }
+  .spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top-color: #4361ee; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 15px; }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  #quizSection { display: none; }
-
-  .progress-bar-container {
-    background: #e0e0e0;
-    border-radius: 10px;
-    height: 10px;
-    margin-bottom: 25px;
-    overflow: hidden;
-  }
-
-  .progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #4361ee, #2ec4b6);
-    border-radius: 10px;
-    transition: width 0.4s ease;
-    width: 0%;
-  }
-
-  .question-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  }
-
-  .question-card h3 {
-    font-size: 1.05rem;
-    margin-bottom: 16px;
-    color: #16213e;
-  }
-
-  .question-number {
-    display: inline-block;
-    background: #4361ee;
-    color: #fff;
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    text-align: center;
-    line-height: 28px;
-    font-size: 0.85rem;
-    margin-right: 8px;
-  }
-
+  #quizSection, #debugSection { display: none; }
+  .progress-bar-container { background: #e0e0e0; border-radius: 10px; height: 10px; margin-bottom: 25px; overflow: hidden; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, #4361ee, #2ec4b6); border-radius: 10px; transition: width 0.4s ease; width: 0%; }
+  .question-card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .question-card h3 { font-size: 1.05rem; margin-bottom: 16px; color: #16213e; }
+  .question-number { display: inline-block; background: #4361ee; color: #fff; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; font-size: 0.85rem; margin-right: 8px; }
   .options { list-style: none; }
-
   .options li { margin-bottom: 10px; }
-
-  .options label {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    border: 2px solid #e8e8e8;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 0.95rem;
-  }
-
-  .options label:hover {
-    border-color: #4361ee;
-    background: #f8f9ff;
-  }
-
-  .options input[type="radio"] {
-    margin-right: 12px;
-    accent-color: #4361ee;
-    width: 18px; height: 18px;
-  }
-
-  .options input[type="radio"]:checked + span {
-    font-weight: 600;
-    color: #4361ee;
-  }
-
-  .options label:has(input:checked) {
-    border-color: #4361ee;
-    background: #eef1ff;
-  }
-
-  .submit-area {
-    text-align: center;
-    margin: 30px 0;
-  }
-
+  .options label { display: flex; align-items: center; padding: 12px 16px; border: 2px solid #e8e8e8; border-radius: 10px; cursor: pointer; transition: all 0.2s; font-size: 0.95rem; }
+  .options label:hover { border-color: #4361ee; background: #f8f9ff; }
+  .options input[type="radio"] { margin-right: 12px; accent-color: #4361ee; width: 18px; height: 18px; }
+  .options input[type="radio"]:checked + span { font-weight: 600; color: #4361ee; }
+  .options label:has(input:checked) { border-color: #4361ee; background: #eef1ff; }
+  .submit-area { text-align: center; margin: 30px 0; }
   #resultsSection { display: none; }
-
-  .results-card {
-    background: #fff;
-    border-radius: 16px;
-    padding: 30px;
-    text-align: center;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-    margin-bottom: 25px;
-  }
-
-  .score-circle {
-    width: 120px; height: 120px;
-    border-radius: 50%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 20px;
-    font-size: 2rem;
-    font-weight: 700;
-    color: #fff;
-  }
-
+  .results-card { background: #fff; border-radius: 16px; padding: 30px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 25px; }
+  .score-circle { width: 120px; height: 120px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 2rem; font-weight: 700; color: #fff; }
   .score-circle.pass { background: linear-gradient(135deg, #2ec4b6, #20a39e); }
   .score-circle.fail { background: linear-gradient(135deg, #e63946, #c1121f); }
-
   .score-circle small { font-size: 0.8rem; font-weight: 400; }
-
-  .review-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 15px;
-    border-left: 5px solid;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  }
-
+  .review-card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 15px; border-left: 5px solid; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
   .review-card.correct { border-left-color: #2ec4b6; }
-  .review-card.wrong   { border-left-color: #e63946; }
-
-  .review-card .tag {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-
+  .review-card.wrong { border-left-color: #e63946; }
+  .review-card .tag { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-bottom: 8px; }
   .tag.correct-tag { background: #d4f5f0; color: #1a936f; }
-  .tag.wrong-tag   { background: #fde2e4; color: #c1121f; }
-
-  .correct-answer-text {
-    color: #1a936f;
-    font-weight: 600;
-    margin-top: 6px;
-    font-size: 0.9rem;
-  }
-
-  .format-help {
-    background: #fff;
-    border-radius: 12px;
-    padding: 20px;
-    margin-top: 20px;
-    font-size: 0.85rem;
-    color: #555;
-  }
-
-  .format-help summary {
-    cursor: pointer;
-    font-weight: 600;
-    color: #4361ee;
-    font-size: 0.95rem;
-  }
-
-  .format-help pre {
-    background: #f7f7f7;
-    padding: 15px;
-    border-radius: 8px;
-    overflow-x: auto;
-    margin-top: 10px;
-    font-size: 0.82rem;
-    line-height: 1.5;
-  }
-
-  @media (max-width: 600px) {
-    .container { padding: 12px; }
-    .question-card { padding: 16px; }
-    .upload-zone { padding: 25px 15px; }
-    .results-card { padding: 20px; }
-    .btn { padding: 14px 24px; width: 100%; }
-  }
+  .tag.wrong-tag { background: #fde2e4; color: #c1121f; }
+  .correct-answer-text { color: #1a936f; font-weight: 600; margin-top: 6px; font-size: 0.9rem; }
+  .format-help { background: #fff; border-radius: 12px; padding: 20px; margin-top: 20px; font-size: 0.85rem; color: #555; }
+  .format-help summary { cursor: pointer; font-weight: 600; color: #4361ee; font-size: 0.95rem; }
+  .format-help pre { background: #f7f7f7; padding: 15px; border-radius: 8px; overflow-x: auto; margin-top: 10px; font-size: 0.82rem; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+  .debug-box { border: 2px solid #e63946; background: #fff5f5; }
+  .debug-box summary { color: #e63946; }
+  .debug-box pre { background: #fff; color: #333; max-height: 300px; overflow-y: auto; border: 1px solid #fde2e4; }
+  @media (max-width: 600px) { .container { padding: 12px; } .question-card { padding: 16px; } .upload-zone { padding: 25px 15px; } .results-card { padding: 20px; } .btn { padding: 14px 24px; width: 100%; } }
 </style>
 </head>
 <body>
@@ -296,16 +70,12 @@
     <div class="upload-zone" id="dropZone">
       <div class="icon">📄</div>
       <p><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
-      <p style="font-size:0.8rem; color:#999; margin-top:8px;">Formato: pregunta + 4 opciones (a-d) + respuesta correcta</p>
       <input type="file" id="fileInput" accept=".pdf">
       <br><br>
-      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
-        Seleccionar PDF
-      </button>
+      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Seleccionar PDF</button>
     </div>
-
     <details class="format-help">
-      <summary>📋 ¿Qué formato debe tener mi PDF?</summary>
+      <summary>📋 Formato esperado del PDF</summary>
       <pre>
 Pregunta 1: ¿Cuál es la capital de Francia?
 a) Londres
@@ -313,16 +83,6 @@ b) Madrid
 c) París
 d) Berlín
 Respuesta correcta: c
-
-Pregunta 2: ¿Cuántos planetas tiene el sistema solar?
-a) 7
-b) 8
-c) 9
-d) 10
-Respuesta correcta: b
-
-(Se admiten variaciones: "Respuesta: c",
- "Solución: C", "Correcta: c", etc.)
       </pre>
     </details>
   </div>
@@ -332,15 +92,24 @@ Respuesta correcta: b
     <p>Leyendo PDF y generando preguntas…</p>
   </div>
 
-  <div id="quizSection">
-    <div class="progress-bar-container">
-      <div class="progress-bar" id="progressBar"></div>
+  <!-- SECCIÓN DE DIAGNÓSTICO (NUEVA) -->
+  <div id="debugSection">
+    <div class="format-help debug-box">
+      <details open>
+        <summary>⚠️ Diagnóstico: Así está leyendo tu PDF el sistema</summary>
+        <p style="margin-top:10px;">El sistema no encontró preguntas. Copia el texto de abajo y pégalo en el chat para que pueda ajustar el código a tu formato exacto:</p>
+        <pre id="debugText"></pre>
+        <p style="margin-top:10px; color: #e63946;"><strong>Nota:</strong> Si el texto de arriba está vacío, tiene símbolos raros (como ) o no se puede seleccionar, tu PDF es una imagen escaneada y no contiene texto real.</p>
+        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;">🔄 Volver a intentar con otro PDF</button>
+      </details>
     </div>
+  </div>
+
+  <div id="quizSection">
+    <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
     <div id="questionsContainer"></div>
     <div class="submit-area">
-      <button class="btn btn-success" id="submitBtn" onclick="checkAnswers()">
-        ✅ Enviar respuestas
-      </button>
+      <button class="btn btn-success" onclick="checkAnswers()">✅ Enviar respuestas</button>
     </div>
   </div>
 
@@ -354,28 +123,20 @@ Respuesta correcta: b
     </div>
     <div id="reviewContainer"></div>
     <div class="submit-area" style="margin-top:20px;">
-      <button class="btn btn-primary" onclick="location.reload()">
-        🔄 Nuevo quiz
-      </button>
+      <button class="btn btn-primary" onclick="location.reload()">🔄 Nuevo quiz</button>
     </div>
   </div>
 </div>
 
 <script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   let quizData = [];
 
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
 
-  ['dragenter','dragover'].forEach(e =>
-    dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); })
-  );
-  ['dragleave','drop'].forEach(e =>
-    dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); })
-  );
+  ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
 
   dropZone.addEventListener('drop', ev => {
     const file = ev.dataTransfer.files[0];
@@ -403,13 +164,13 @@ Respuesta correcta: b
         fullText += strings.join('\n') + '\n';
       }
 
-      console.log('Texto extraído del PDF:', fullText);
-
       quizData = parseQuestions(fullText);
 
       if (quizData.length === 0) {
-        alert('No se encontraron preguntas. Revisa el formato del PDF.\n\nAsegúrate de que:\n1. El PDF tiene texto seleccionable (no es una imagen)\n2. Sigue el formato: Pregunta + 4 opciones (a-d) + Respuesta correcta');
-        location.reload();
+        // MOSTRAR DIAGNÓSTICO EN LUGAR DE ALERTA
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('debugSection').style.display = 'block';
+        document.getElementById('debugText').textContent = fullText.length > 1500 ? fullText.substring(0, 1500) + '\n\n... (texto truncado)' : fullText;
         return;
       }
 
@@ -424,71 +185,49 @@ Respuesta correcta: b
   function parseQuestions(text) {
     const questions = [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-
     let currentQuestion = null;
     let optionCount = 0;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-
-      // Detectar inicio de pregunta
       const questionMatch = line.match(/^(?:Pregunta\s*\d*[:.]?\s*|Pregunta\s*\d+\s*[-.)]\s*)?(.+?)(?:\?|$)/i);
       
       if (questionMatch && !line.match(/^[a-dA-D][.)]\s/)) {
-        // Si ya teníamos una pregunta completa, guardarla
-        if (currentQuestion && currentQuestion.options && 
-            Object.keys(currentQuestion.options).length === 4 && currentQuestion.correct) {
+        if (currentQuestion && currentQuestion.options && Object.keys(currentQuestion.options).length >= 2 && currentQuestion.correct) {
           questions.push(currentQuestion);
         }
-        
-        currentQuestion = {
-          id: questions.length,
-          question: questionMatch[1].trim(),
-          options: {},
-          correct: null
-        };
+        currentQuestion = { id: questions.length, question: questionMatch[1].trim(), options: {}, correct: null };
         optionCount = 0;
         continue;
       }
 
-      // Detectar opciones
       const optionMatch = line.match(/^([a-dA-D])[.)]\s*(.+)/);
       if (optionMatch && currentQuestion) {
-        const letter = optionMatch[1].toLowerCase();
-        const text = optionMatch[2].trim();
-        currentQuestion.options[letter] = text;
+        currentQuestion.options[optionMatch[1].toLowerCase()] = optionMatch[2].trim();
         optionCount++;
         continue;
       }
 
-      // Detectar respuesta correcta
       const answerMatch = line.match(/(?:Respuesta\s*(?:correcta)?|Soluci[oó]n|Correcta|Resp)\s*[:.)]?\s*([a-dA-D])/i);
       if (answerMatch && currentQuestion) {
         currentQuestion.correct = answerMatch[1].toLowerCase();
         continue;
       }
 
-      // Si la línea no encaja y estamos en una pregunta, puede ser continuación
-      if (currentQuestion && optionCount === 0 && 
-          !line.match(/^[a-dA-D][.)]/) &&
-          !line.match(/Respuesta|Soluci[oó]n|Correcta/i)) {
+      if (currentQuestion && optionCount === 0 && !line.match(/^[a-dA-D][.)]/) && !line.match(/Respuesta|Soluci[oó]n|Correcta/i)) {
         currentQuestion.question += ' ' + line;
       }
     }
 
-    // Añadir la última pregunta si está completa
-    if (currentQuestion && currentQuestion.options && 
-        Object.keys(currentQuestion.options).length === 4 && currentQuestion.correct) {
+    if (currentQuestion && currentQuestion.options && Object.keys(currentQuestion.options).length >= 2 && currentQuestion.correct) {
       questions.push(currentQuestion);
     }
-
     return questions;
   }
 
   function renderQuiz() {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('quizSection').style.display = 'block';
-
     const container = document.getElementById('questionsContainer');
     container.innerHTML = '';
 
@@ -501,8 +240,7 @@ Respuesta correcta: b
           ${['a','b','c','d'].map(letter => `
             <li>
               <label>
-                <input type="radio" name="q${q.id}" value="${letter}"
-                       onchange="updateProgress()">
+                <input type="radio" name="q${q.id}" value="${letter}" onchange="updateProgress()">
                 <span><strong>${letter.toUpperCase()})</strong> ${escapeHtml(q.options[letter] || 'Opción no disponible')}</span>
               </label>
             </li>
@@ -527,11 +265,7 @@ Respuesta correcta: b
 
   function checkAnswers() {
     const answered = document.querySelectorAll('input[type="radio"]:checked').length;
-    if (answered < quizData.length) {
-      if (!confirm(`Has respondido ${answered} de ${quizData.length} preguntas. ¿Enviar de todos modos?`)) {
-        return;
-      }
-    }
+    if (answered < quizData.length && !confirm(`Has respondido ${answered} de ${quizData.length}. ¿Enviar?`)) return;
 
     let score = 0;
     const reviewContainer = document.getElementById('reviewContainer');
@@ -546,9 +280,7 @@ Respuesta correcta: b
       const card = document.createElement('div');
       card.className = `review-card ${isCorrect ? 'correct' : 'wrong'}`;
       card.innerHTML = `
-        <span class="tag ${isCorrect ? 'correct-tag' : 'wrong-tag'}">
-          ${isCorrect ? '✅ Correcta' : '❌ Incorrecta'}
-        </span>
+        <span class="tag ${isCorrect ? 'correct-tag' : 'wrong-tag'}">${isCorrect ? '✅ Correcta' : '❌ Incorrecta'}</span>
         <h4 style="margin:8px 0 6px;">${i + 1}. ${escapeHtml(q.question)}</h4>
         <p>Tu respuesta: <strong>${userAnswer ? userAnswer.toUpperCase() + ') ' + escapeHtml(q.options[userAnswer] || '') : 'Sin responder'}</strong></p>
         ${!isCorrect ? `<p class="correct-answer-text">✔ Respuesta correcta: ${q.correct.toUpperCase()}) ${escapeHtml(q.options[q.correct] || '')}</p>` : ''}
@@ -564,14 +296,9 @@ Respuesta correcta: b
     circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
     document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
     document.getElementById('scoreLabel').textContent = `${pct}%`;
-    document.getElementById('scoreMessage').textContent =
-      pct >= 90 ? ' ¡Excelente!' :
-      pct >= 70 ? '👏 ¡Muy bien!' :
-      pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
-
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 </script>
-
 </body>
 </html>
