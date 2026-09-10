@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quiz desde PDF</title>
+<title>Preguntas desde PDF v01</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -13,6 +13,7 @@
   .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 0.95rem; }
   .upload-zone { border: 3px dashed #a0aec0; border-radius: 16px; padding: 40px 20px; text-align: center; background: #fff; transition: all 0.3s; cursor: pointer; }
   .upload-zone:hover, .upload-zone.dragover { border-color: #4361ee; background: #eef1ff; }
+  .upload-zone.success { border-color: #2ec4b6; background: #f0fdfa; border-style: solid; }
   .upload-zone .icon { font-size: 3rem; margin-bottom: 10px; }
   .upload-zone p { color: #555; }
   #fileInput { display: none; }
@@ -62,9 +63,8 @@
   .debug-box summary { color: #e63946; }
   .debug-box pre { background: #fff; color: #333; max-height: 300px; overflow-y: auto; border: 1px solid #fde2e4; }
   
-  /* Estilos del Historial */
   .history-section { background: #fff; border-radius: 12px; padding: 20px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-  .history-section h3 { margin-bottom: 15px; color: #16213e; display: flex; justify-content: space-between; align-items: center; }
+  .history-section h3 { margin-bottom: 15px; color: #16213e; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
   .history-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
   .history-table th, .history-table td { padding: 10px; text-align: left; border-bottom: 1px solid #e8e8e8; }
   .history-table th { color: #666; font-weight: 600; }
@@ -84,19 +84,18 @@
 <body>
 
 <div class="container">
-  <h1>📝 Quiz desde PDF</h1>
+  <h1> Preguntas desde PDF v01</h1>
   <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
 
   <div id="uploadSection">
     <div class="upload-zone" id="dropZone">
-      <div class="icon">📄</div>
-      <p><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
+      <div class="icon" id="dropIcon">📄</div>
+      <p id="dropText"><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
       <input type="file" id="fileInput" accept=".pdf">
-      <br><br>
+      <br>
       <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Seleccionar PDF</button>
     </div>
     
-    <!-- Sección de Historial -->
     <div class="history-section">
       <h3>
         📊 Historial de intentos
@@ -120,15 +119,14 @@ Respuesta correcta: c</pre>
 
   <div id="loading">
     <div class="spinner"></div>
-    <p>Leyendo PDF y generando preguntas…</p>
+    <p id="loadingText">Leyendo PDF y generando preguntas…</p>
   </div>
 
   <div id="debugSection">
     <div class="format-help debug-box">
       <details open>
-        <summary>⚠️ Diagnóstico: El sistema no pudo leer las preguntas</summary>
-        <p style="margin-top:10px;">Texto extraído del PDF:</p>
-        <pre id="debugText"></pre>
+        <summary id="debugTitle">⚠️ No se pudieron leer las preguntas</summary>
+        <pre id="debugText" style="margin-top:10px;"></pre>
         <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;">🔄 Volver a intentar</button>
       </details>
     </div>
@@ -164,27 +162,34 @@ Respuesta correcta: c</pre>
 
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
+  const dropText = document.getElementById('dropText');
+  const dropIcon = document.getElementById('dropIcon');
 
   ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
   ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
 
   dropZone.addEventListener('drop', ev => {
     const file = ev.dataTransfer.files[0];
-    if (file && file.type === 'application/pdf') processFile(file);
-    else alert('Por favor, sube un archivo PDF.');
+    if (file && file.type === 'application/pdf') handleFileSelection(file);
+    else alert('Por favor, sube un archivo PDF válido.');
   });
 
   fileInput.addEventListener('change', ev => {
-    if (ev.target.files[0]) processFile(ev.target.files[0]);
+    if (ev.target.files[0]) handleFileSelection(ev.target.files[0]);
   });
 
-  // Cargar historial al iniciar
+  // Muestra confirmación visual de que el archivo se ha seleccionado
+  function handleFileSelection(file) {
+    dropZone.classList.add('success');
+    dropIcon.textContent = '✅';
+    dropText.innerHTML = `<strong>Fichero "${file.name}" subido.</strong><br><span style="font-size:0.9rem; color:#666;">Procesando preguntas...</span>`;
+    document.getElementById('loading').style.display = 'block';
+    processFile(file);
+  }
+
   window.addEventListener('DOMContentLoaded', renderHistory);
 
   async function processFile(file) {
-    document.getElementById('uploadSection').style.display = 'none';
-    document.getElementById('loading').style.display = 'block';
-
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -202,15 +207,24 @@ Respuesta correcta: c</pre>
       if (quizData.length === 0) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('debugSection').style.display = 'block';
-        document.getElementById('debugText').textContent = fullText.length > 1500 ? fullText.substring(0, 1500) + '\n\n... (texto truncado)' : fullText;
+        
+        let errorMsg = "";
+        if (fullText.trim().length < 50) {
+          errorMsg = "❌ El PDF parece estar vacío o ser una imagen escaneada (foto). El sistema no puede leer imágenes. Por favor, usa un PDF con texto seleccionable (creado desde Word, Docs, etc.).";
+        } else {
+          errorMsg = "⚠️ Se leyó el texto, pero no se encontraron preguntas con el formato esperado.\n\nEl formato debe ser:\nPregunta X: [texto con signo de interrogación]\na) [opción]\nb) [opción]\nc) [opción]\nd) [opción]\nRespuesta correcta: [letra]\n\n--- Texto extraído (inicio) ---";
+        }
+        
+        document.getElementById('debugText').textContent = errorMsg + "\n" + (fullText.length > 600 ? fullText.substring(0, 600) + '...' : fullText);
         return;
       }
 
       renderQuiz();
     } catch (err) {
       console.error(err);
-      alert('Error al leer el PDF: ' + err.message);
-      location.reload();
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('debugSection').style.display = 'block';
+      document.getElementById('debugText').textContent = "❌ Error técnico al leer el PDF: " + err.message;
     }
   }
 
@@ -224,4 +238,183 @@ Respuesta correcta: c</pre>
       let line = lines[i];
       const isQuestionStart = line.match(/^(?:Pregunta\s*\d+[:.-]?\s*)?(.+?\?)\s*$/i) || line.match(/^\d+[\s.:)]\s+(.+)/);
       
-      if (
+      if (isQuestionStart && !line.match(/^[a-dA-D][.)]/i)) {
+        if (currentQ && currentQ.correct) questions.push(currentQ);
+        currentQ = { id: questions.length, question: (isQuestionStart[1] || isQuestionStart[0]).trim(), options: {}, correct: null };
+        pendingOptionLetter = null;
+        continue;
+      }
+
+      if (!currentQ) continue;
+
+      if (pendingOptionLetter && line.match(/^[.)]\s*(.*)/)) {
+        currentQ.options[pendingOptionLetter] = line.match(/^[.)]\s*(.*)/)[1].trim();
+        pendingOptionLetter = null;
+        continue;
+      }
+
+      const optionMatch = line.match(/^([a-dA-D])\s*[.)]\s*(.+)/);
+      if (optionMatch) {
+        pendingOptionLetter = optionMatch[1].toLowerCase();
+        currentQ.options[pendingOptionLetter] = optionMatch[2].trim();
+        continue;
+      }
+
+      if (line.match(/^[a-dA-D]$/)) {
+        pendingOptionLetter = line.toLowerCase();
+        continue;
+      }
+
+      const answerMatch = line.match(/(?:Respuesta\s*(?:correcta)?|Soluci[oó]n|Correcta|Resp)\s*[:.)]?\s*([a-dA-D])/i);
+      if (answerMatch) {
+        currentQ.correct = answerMatch[1].toLowerCase();
+        continue;
+      }
+
+      if (pendingOptionLetter && currentQ.options[pendingOptionLetter]) {
+        currentQ.options[pendingOptionLetter] += ' ' + line;
+        continue;
+      }
+      
+      if (Object.keys(currentQ.options).length === 0 && !pendingOptionLetter) {
+        currentQ.question += ' ' + line;
+        continue;
+      }
+    }
+
+    if (currentQ && currentQ.correct && Object.keys(currentQ.options).length >= 2) {
+      questions.push(currentQ);
+    }
+    return questions;
+  }
+
+  function renderQuiz() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('uploadSection').style.display = 'none';
+    document.getElementById('quizSection').style.display = 'block';
+    const container = document.getElementById('questionsContainer');
+    container.innerHTML = '';
+
+    quizData.forEach((q, i) => {
+      const card = document.createElement('div');
+      card.className = 'question-card';
+      card.innerHTML = `
+        <h3><span class="question-number">${i + 1}</span>${escapeHtml(q.question)}</h3>
+        <ul class="options">
+          ${['a','b','c','d'].map(letter => `
+            <li>
+              <label>
+                <input type="radio" name="q${q.id}" value="${letter}" onchange="updateProgress()">
+                <span><strong>${letter.toUpperCase()})</strong> ${escapeHtml(q.options[letter] || 'Opción no disponible')}</span>
+              </label>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function updateProgress() {
+    const answered = document.querySelectorAll('input[type="radio"]:checked').length;
+    const pct = (answered / quizData.length) * 100;
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+
+  function checkAnswers() {
+    const answered = document.querySelectorAll('input[type="radio"]:checked').length;
+    if (answered < quizData.length && !confirm(`Has respondido ${answered} de ${quizData.length}. ¿Enviar de todos modos?`)) {
+      return;
+    }
+
+    let score = 0;
+    const reviewContainer = document.getElementById('reviewContainer');
+    reviewContainer.innerHTML = '';
+
+    quizData.forEach((q, i) => {
+      const selected = document.querySelector(`input[name="q${q.id}"]:checked`);
+      const userAnswer = selected ? selected.value : null;
+      const isCorrect = userAnswer === q.correct;
+      if (isCorrect) score++;
+
+      const card = document.createElement('div');
+      card.className = `review-card ${isCorrect ? 'correct' : 'wrong'}`;
+      card.innerHTML = `
+        <span class="tag ${isCorrect ? 'correct-tag' : 'wrong-tag'}">${isCorrect ? '✅ Correcta' : '❌ Incorrecta'}</span>
+        <h4 style="margin:8px 0 6px;">${i + 1}. ${escapeHtml(q.question)}</h4>
+        <p>Tu respuesta: <strong>${userAnswer ? userAnswer.toUpperCase() + ') ' + escapeHtml(q.options[userAnswer] || '') : 'Sin responder'}</strong></p>
+        ${!isCorrect ? `<p class="correct-answer-text">✔ Respuesta correcta: ${q.correct.toUpperCase()}) ${escapeHtml(q.options[q.correct] || '')}</p>` : ''}
+      `;
+      reviewContainer.appendChild(card);
+    });
+
+    const pct = Math.round((score / quizData.length) * 100);
+    saveToHistory(score, quizData.length, pct);
+
+    document.getElementById('quizSection').style.display = 'none';
+    document.getElementById('resultsSection').style.display = 'block';
+
+    const circle = document.getElementById('scoreCircle');
+    circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
+    document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
+    document.getElementById('scoreLabel').textContent = `${pct}%`;
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? ' ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function restartQuiz() {
+    document.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('resultsSection').style.display = 'none';
+    document.getElementById('quizSection').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function saveToHistory(score, total, percentage) {
+    try {
+      const attempt = {
+        date: new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        score: `${score}/${total}`,
+        percentage: `${percentage}%`
+      };
+      let history = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+      history.unshift(attempt);
+      if (history.length > 20) history.pop(); 
+      localStorage.setItem('quizHistory', JSON.stringify(history));
+    } catch (e) { console.error('No se pudo guardar en el historial:', e); }
+  }
+
+  function renderHistory() {
+    const container = document.getElementById('historyContainer');
+    try {
+      const history = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+      if (history.length === 0) {
+        container.innerHTML = '<p class="empty-history">Aún no has realizado ningún test.</p>';
+        return;
+      }
+      let html = '<table class="history-table"><thead><tr><th>Fecha</th><th>Puntuación</th><th>%</th></tr></thead><tbody>';
+      history.forEach(item => {
+        const colorClass = parseInt(item.percentage) >= 50 ? 'color: #1a936f; font-weight:600;' : 'color: #c1121f; font-weight:600;';
+        html += `<tr><td>${item.date}</td><td>${item.score}</td><td style="${colorClass}">${item.percentage}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (e) { container.innerHTML = '<p class="empty-history">Error al cargar el historial.</p>'; }
+  }
+
+  function clearHistory() {
+    if (confirm('¿Estás seguro de que quieres borrar todo el historial de intentos?')) {
+      localStorage.removeItem('quizHistory');
+      renderHistory();
+    }
+  }
+</script>
+</body>
+</html>
