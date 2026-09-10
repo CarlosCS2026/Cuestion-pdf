@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quiz desde PDF 01</title>
+<title>Quiz desde PDF</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -63,7 +63,7 @@
 <body>
 
 <div class="container">
-  <h1>📝 Quiz desde PDF 01</h1>
+  <h1>📝 Quiz desde PDF</h1>
   <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
 
   <div id="uploadSection">
@@ -76,14 +76,12 @@
     </div>
     <details class="format-help">
       <summary>📋 Formato esperado del PDF</summary>
-      <pre>
-Pregunta 1: ¿Cuál es la capital de Francia?
+      <pre>Pregunta 1: ¿Cuál es la capital de Francia?
 a) Londres
 b) Madrid
 c) París
 d) Berlín
-Respuesta correcta: c
-      </pre>
+Respuesta correcta: c</pre>
     </details>
   </div>
 
@@ -96,7 +94,7 @@ Respuesta correcta: c
     <div class="format-help debug-box">
       <details open>
         <summary>⚠️ Diagnóstico: El sistema no pudo leer las preguntas</summary>
-        <p style="margin-top:10px;">Texto extraído:</p>
+        <p style="margin-top:10px;">Texto extraído del PDF:</p>
         <pre id="debugText"></pre>
         <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;">🔄 Volver a intentar</button>
       </details>
@@ -190,8 +188,7 @@ Respuesta correcta: c
       let line = lines[i];
 
       // 1. Detectar inicio de pregunta
-      const isQuestionStart = line.match(/^(?:Pregunta\s*\d+[:.-]?\s*)?(.+?\?)\s*$/i) || 
-                              line.match(/^\d+[\s.:)]\s+(.+)/);
+      const isQuestionStart = line.match(/^(?:Pregunta\s*\d+[:.-]?\s*)?(.+?\?)\s*$/i) || line.match(/^\d+[\s.:)]\s+(.+)/);
       
       if (isQuestionStart && !line.match(/^[a-dA-D][.)]/i)) {
         if (currentQ && currentQ.correct) {
@@ -237,7 +234,7 @@ Respuesta correcta: c
         continue;
       }
 
-      // 6. Manejar continuación de texto (ej: "Saturn" \n "o" o texto de pregunta que sigue)
+      // 6. Manejar continuación de texto (ej: "Saturn" \n "o")
       if (pendingOptionLetter && currentQ.options[pendingOptionLetter]) {
         currentQ.options[pendingOptionLetter] += ' ' + line;
         continue;
@@ -297,4 +294,43 @@ Respuesta correcta: c
 
   function checkAnswers() {
     const answered = document.querySelectorAll('input[type="radio"]:checked').length;
-    if (answered < quizData.length && !confirm(`Has respondido ${answered} de ${quizData.length}. ¿Enviar?`
+    if (answered < quizData.length && !confirm(`Has respondido ${answered} de ${quizData.length}. ¿Enviar de todos modos?`)) {
+      return;
+    }
+
+    let score = 0;
+    const reviewContainer = document.getElementById('reviewContainer');
+    reviewContainer.innerHTML = '';
+
+    quizData.forEach((q, i) => {
+      const selected = document.querySelector(`input[name="q${q.id}"]:checked`);
+      const userAnswer = selected ? selected.value : null;
+      const isCorrect = userAnswer === q.correct;
+      if (isCorrect) score++;
+
+      const card = document.createElement('div');
+      card.className = `review-card ${isCorrect ? 'correct' : 'wrong'}`;
+      card.innerHTML = `
+        <span class="tag ${isCorrect ? 'correct-tag' : 'wrong-tag'}">${isCorrect ? '✅ Correcta' : '❌ Incorrecta'}</span>
+        <h4 style="margin:8px 0 6px;">${i + 1}. ${escapeHtml(q.question)}</h4>
+        <p>Tu respuesta: <strong>${userAnswer ? userAnswer.toUpperCase() + ') ' + escapeHtml(q.options[userAnswer] || '') : 'Sin responder'}</strong></p>
+        ${!isCorrect ? `<p class="correct-answer-text">✔ Respuesta correcta: ${q.correct.toUpperCase()}) ${escapeHtml(q.options[q.correct] || '')}</p>` : ''}
+      `;
+      reviewContainer.appendChild(card);
+    });
+
+    const pct = Math.round((score / quizData.length) * 100);
+    document.getElementById('quizSection').style.display = 'none';
+    document.getElementById('resultsSection').style.display = 'block';
+
+    const circle = document.getElementById('scoreCircle');
+    circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
+    document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
+    document.getElementById('scoreLabel').textContent = `${pct}%`;
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>
