@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz desde PDF</title>
+
+<!-- PDF.js desde CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style>
+  /* ===== RESET Y BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  h1 {
+    text-align: center;
+    margin: 20px 0 10px;
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    color: #16213e;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 30px;
+    font-size: 0.95rem;
+  }
+
+  /* ===== ZONA DE SUBIDA ===== */
+  .upload-zone {
+    border: 3px dashed #a0aec0;
+    border-radius: 16px;
+    padding: 40px 20px;
+    text-align: center;
+    background: #fff;
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: #4361ee;
+    background: #eef1ff;
+  }
+
+  .upload-zone .icon { font-size: 3rem; margin-bottom: 10px; }
+
+  .upload-zone p { color: #555; }
+
+  #fileInput { display: none; }
+
+  .btn {
+    display: inline-block;
+    padding: 12px 28px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: #4361ee;
+    color: #fff;
+  }
+
+  .btn-primary:hover { background: #3a56d4; }
+
+  .btn-success {
+    background: #2ec4b6;
+    color: #fff;
+  }
+
+  .btn-success:hover { background: #27b0a3; }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* ===== LOADING ===== */
+  #loading {
+    display: none;
+    text-align: center;
+    padding: 30px;
+  }
+
+  .spinner {
+    width: 40px; height: 40px;
+    border: 4px solid #e0e0e0;
+    border-top-color: #4361ee;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 15px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== QUIZ ===== */
+  #quizSection { display: none; }
+
+  .progress-bar-container {
+    background: #e0e0e0;
+    border-radius: 10px;
+    height: 10px;
+    margin-bottom: 25px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4361ee, #2ec4b6);
+    border-radius: 10px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  .question-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  .question-card h3 {
+    font-size: 1.05rem;
+    margin-bottom: 16px;
+    color: #16213e;
+  }
+
+  .question-number {
+    display: inline-block;
+    background: #4361ee;
+    color: #fff;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 28px;
+    font-size: 0.85rem;
+    margin-right: 8px;
+  }
+
+  .options { list-style: none; }
+
+  .options li {
+    margin-bottom: 10px;
+  }
+
+  .options label {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border: 2px solid #e8e8e8;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.95rem;
+  }
+
+  .options label:hover {
+    border-color: #4361ee;
+    background: #f8f9ff;
+  }
+
+  .options input[type="radio"] {
+    margin-right: 12px;
+    accent-color: #4361ee;
+    width: 18px; height: 18px;
+  }
+
+  .options input[type="radio"]:checked + span {
+    font-weight: 600;
+    color: #4361ee;
+  }
+
+  .options label:has(input:checked) {
+    border-color: #4361ee;
+    background: #eef1ff;
+  }
+
+  .submit-area {
+    text-align: center;
+    margin: 30px 0;
+  }
+
+  /* ===== RESULTADOS ===== */
+  #resultsSection { display: none; }
+
+  .results-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    margin-bottom: 25px;
+  }
+
+  .score-circle {
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .score-circle.pass { background: linear-gradient(135deg, #2ec4b6, #20a39e); }
+  .score-circle.fail { background: linear-gradient(135deg, #e63946, #c1121f); }
+
+  .score-circle small { font-size: 0.8rem; font-weight: 400; }
+
+  .review-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 15px;
+    border-left: 5px solid;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+
+  .review-card.correct { border-left-color: #2ec4b6; }
+  .review-card.wrong   { border-left-color: #e63946; }
+
+  .review-card .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .tag.correct-tag { background: #d4f5f0; color: #1a936f; }
+  .tag.wrong-tag   { background: #fde2e4; color: #c1121f; }
+
+  .correct-answer-text {
+    color: #1a936f;
+    font-weight: 600;
+    margin-top: 6px;
+    font-size: 0.9rem;
+  }
+
+  /* ===== FORMATO AYUDA ===== */
+  .format-help {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+    font-size: 0.85rem;
+    color: #555;
+  }
+
+  .format-help summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #4361ee;
+    font-size: 0.95rem;
+  }
+
+  .format-help pre {
+    background: #f7f7f7;
+    padding: 15px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin-top: 10px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 600px) {
+    .container { padding: 12px; }
+    .question-card { padding: 16px; }
+    .upload-zone { padding: 25px 15px; }
+    .results-card { padding: 20px; }
+    .btn { padding: 14px 24px; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>📝 Quiz desde PDF</h1>
+  <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
+
+  <!-- ZONA DE SUBIDA -->
+  <div id="uploadSection">
+    <div class="upload-zone" id="dropZone">
+      <div class="icon">📄</div>
+      <p><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
+      <p style="font-size:0.8rem; color:#999; margin-top:8px;">Formato: pregunta + 4 opciones (a-d) + respuesta correcta</p>
+      <input type="file" id="fileInput" accept=".pdf">
+      <br><br>
+      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+        Seleccionar PDF
+      </button>
+    </div>
+
+    <details class="format-help">
+      <summary>📋 ¿Qué formato debe tener mi PDF?</summary>
+      <pre>
+Pregunta 1: ¿Cuál es la capital de Francia?
+a) Londres
+b) Madrid
+c) París
+d) Berlín
+Respuesta correcta: c
+
+Pregunta 2: ¿Cuántos planetas tiene el sistema solar?
+a) 7
+b) 8
+c) 9
+d) 10
+Respuesta correcta: b
+
+(Se admiten variaciones: "Respuesta: c",
+ "Solución: C", "Correcta: c", etc.)
+      </pre>
+    </details>
+  </div>
+
+  <!-- LOADING -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Leyendo PDF y generando preguntas…</p>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="quizSection">
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div id="questionsContainer"></div>
+    <div class="submit-area">
+      <button class="btn btn-success" id="submitBtn" onclick="checkAnswers()">
+        ✅ Enviar respuestas
+      </button>
+    </div>
+  </div>
+
+  <!-- RESULTADOS -->
+  <div id="resultsSection">
+    <div class="results-card">
+      <div class="score-circle" id="scoreCircle">
+        <span id="scoreNumber"></span>
+        <small id="scoreLabel"></small>
+      </div>
+      <h2 id="scoreMessage"></h2>
+    </div>
+    <div id="reviewContainer"></div>
+    <div class="submit-area" style="margin-top:20px;">
+      <button class="btn btn-primary" onclick="location.reload()">
+        🔄 Nuevo quiz
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Configurar worker de PDF.js
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  let quizData = [];
+
+  // ===== DRAG & DROP =====
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  ['dragenter','dragover'].forEach(e =>
+    dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); })
+  );
+  ['dragleave','drop'].forEach(e =>
+    dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); })
+  );
+
+  dropZone.addEventListener('drop', ev => {
+    const file = ev.dataTransfer.files[0];
+    if (file && file.type === 'application/pdf') processFile(file);
+    else alert('Por favor, sube un archivo PDF.');
+  });
+
+  fileInput.addEventListener('change', ev => {
+    if (ev.target.files[0]) processFile(ev.target.files[0]);
+  });
+
+  // ===== PROCESAR PDF =====
+  async function processFile(file) {
+    document.getElementById('uploadSection').style.display = 'none';
+    document.getElementById('loading').style.display = 'block';
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const strings = content.items.map(item => item.str);
+        fullText += strings.join(' ') + '\n';
+      }
+
+      quizData = parseQuestions(fullText);
+
+      if (quizData.length === 0) {
+        alert('No se encontraron preguntas. Revisa el formato del PDF.');
+        location.reload();
+        return;
+      }
+
+      renderQuiz();
+    } catch (err) {
+      console.error(err);
+      alert('Error al leer el PDF: ' + err.message);
+      location.reload();
+    }
+  }
+
+  // ===== PARSER DE PREGUNTAS =====
+  function parseQuestions(text) {
+    const questions = [];
+
+    // Normalizar espacios
+    text = text.replace(/\s+/g, ' ').trim();
+
+    // Patrón flexible para encontrar bloques de pregunta
+    // Busca: "Pregunta N:" o "N." o "N)" al inicio, seguido de texto,
+    // luego opciones a) b) c) d), luego respuesta
+    const regex =
+      /(?:Pregunta\s*\d*\s*[:.]?\s*|\b(\d+)\s*[.):]\s*)([^a-dA-D]*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)(?:Respuesta\s*(?:correcta)?\s*[:.]?\s*([a-dA-D])|Soluci[oó]n\s*[:.]?\s*([a-dA-D])|Correcta\s*[:.]?\s*([a-dA-D]))/gi;
+
+    let match;
+    let index = 0;
+
+    while ((match = regex.exec(text)) !== null) {
+      const questionText = (match[2] || '').trim();
+      const optA = match[4].trim();
+      const optB = match[6].trim();
+      const optC = match[8].trim();
+      const optD = match[10].trim();
+      const answer = (match[11] || match[12] || match[13] || '').toLowerCase().trim();
+
+      if (questionText && optA && optB && optC && optD && answer) {
+        questions.push({
+          id: index++,
+          question: questionText,
+          options: { a: optA, b: optB, c: optC, d: optD },
+          correct: answer
+        });
+      }
+    }
+
+    // Si el regex complejo falla, intentar parser línea a línea
+    if (questions.length === 0) {
+      return parseLineByLine(text);
+    }
+
+    return questions;
+  }
+
+  function parseLineByLine(text) {
+    const questions = [];
+    const lines = text.split(/\n/).map(l => l.trim()).filter(l => l);
+
+    let current = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Detectar pregunta
+      const qMatch = line.match(/(?:Pregunta\s*\d*\s*[:.]?\s*)?(.+?\?)\s*$/i) ||
+                     line.match(/^\d+\s*[.):]\s*(.+)/);
+      if (qMatch && !current) {
+        current = { question: qMatch[1] || qMatch[0], options: {}, correct: null };
+        continue;
+      }
+
+      if (current) {
+        // Detectar opciones
+        const oMatch = line.match(/^([a-dA-D])\s*[.):]\s*(.+)/);
+        if (oMatch) {
+          current.options[oMatch[1].toLowerCase()] = oMatch[2].trim();
+          continue;
+        }
+
+        // Detectar respuesta
+        const aMatch = line.match(/(?:Respuesta\s*(?:correcta)?|Soluci[oó]n|Correcta)\s*[:.]?\s*([a-dA-D])/i);
+        if (aMatch) {
+          current.correct = aMatch[1].toLowerCase();
+          if (Object.keys(current.options).length === 4 && current.correct) {
+            current.id = questions.length;
+            questions.push(current);
+          }
+          current = null;
+          continue;
+        }
+
+        // Si la línea no encaja y ya tenemos pregunta, puede ser continuación
+        if (!line.match(/^[a-dA-D]\s*[.):]/) &&
+            !line.match(/Respuesta|Soluci[oó]n|Correcta/i) &&
+            Object.keys(current.options).length === 0) {
+          current.question += ' ' + line;
+        }
+      }
+    }
+
+    return questions;
+  }
+
+  // ===== RENDERIZAR QUIZ =====
+  function renderQuiz() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('quizSection').style.display = 'block';
+
+    const container = document.getElementById('questionsContainer');
+    container.innerHTML = '';
+
+    quizData.forEach((q, i) => {
+      const card = document.createElement('div');
+      card.className = 'question-card';
+      card.innerHTML = `
+        <h3><span class="question-number">${i + 1}</span>${escapeHtml(q.question)}</h3>
+        <ul class="options">
+          ${['a','b','c','d'].map(letter => `
+            <li>
+              <label>
+                <input type="radio" name="q${q.id}" value="${letter}"
+                       onchange="updateProgress()">
+                <span><strong>${letter.toUpperCase()})</strong> ${escapeHtml(q.options[letter])}</span>
+              </label>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ===== BARRA DE PROGRESO =====
+  function updateProgress() {
+    const answered = document.querySelectorAll('input[type="radio"]:checked').length;
+    const pct = (answered / quizData.length) * 100;
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+
+  // ===== COMPROBAR RESPUESTAS =====
+  function checkAnswers() {
+    const answered = document.querySelectorAll('input[type="radio"]:checked').length;
+    if (answered < quizData.length) {
+      if (!confirm(`Has respondido ${answered} de ${quizData.length} preguntas. ¿Enviar de todos modos?`)) {
+        return;
+      }
+    }
+
+    let score = 0;
+    const reviewContainer = document.getElementById('reviewContainer');
+    reviewContainer.innerHTML = '';
+
+    quizData.forEach((q, i) => {
+      const selected = document.querySelector(`input[name="q${q.id}"]:checked`);
+      const userAnswer = selected ? selected.value : null;
+      const isCorrect = userAnswer === q.correct;
+      if (isCorrect) score++;
+
+      const card = document.createElement('div');
+      card.className = `review-card ${isCorrect ? 'correct' : 'wrong'}`;
+      card.innerHTML = `
+        <span class="tag ${isCorrect ? 'correct-tag' : 'wrong-tag'}">
+          ${isCorrect ? '✅ Correcta' : '❌ Incorrecta'}
+        </span>
+        <h4 style="margin:8px 0 6px;">${i + 1}. ${escapeHtml(q.question)}</h4>
+        <p>Tu respuesta: <strong>${userAnswer ? userAnswer.toUpperCase() + ') ' + escapeHtml(q.options[userAnswer]) : 'Sin responder'}</strong></p>
+        ${!isCorrect ? `<p class="correct-answer-text">✔ Respuesta correcta: ${q.correct.toUpperCase()}) ${escapeHtml(q.options[q.correct])}</p>` : ''}
+      `;
+      reviewContainer.appendChild(card);
+    });
+
+    // Mostrar resultados
+    const pct = Math.round((score / quizData.length) * 100);
+    document.getElementById('quizSection').style.display = 'none';
+    document.getElementById('resultsSection').style.display = 'block';
+
+    const circle = document.getElementById('scoreCircle');
+    circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
+    document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
+    document.getElementById('scoreLabel').textContent = `${pct}%`;
+    document.getElementById('scoreMessage').textContent =
+      pct >= 90 ? '🏆 ¡Excelente!' :
+      pct >= 70 ? '👏 ¡Muy bien!' :
+      pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+
+</body>
+</html>
