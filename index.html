@@ -294,7 +294,7 @@
 
   <div id="uploadSection">
     <div class="upload-zone" id="dropZone">
-      <div class="icon"></div>
+      <div class="icon">📄</div>
       <p><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
       <p style="font-size:0.8rem; color:#999; margin-top:8px;">Formato: pregunta + 4 opciones (a-d) + respuesta correcta</p>
       <input type="file" id="fileInput" accept=".pdf">
@@ -320,6 +320,9 @@ b) 8
 c) 9
 d) 10
 Respuesta correcta: b
+
+(Se admiten variaciones: "Respuesta: c",
+ "Solución: C", "Correcta: c", etc.)
       </pre>
     </details>
   </div>
@@ -397,13 +400,15 @@ Respuesta correcta: b
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         const strings = content.items.map(item => item.str);
-        fullText += strings.join(' ') + '\n';
+        fullText += strings.join('\n') + '\n';
       }
+
+      console.log('Texto extraído del PDF:', fullText);
 
       quizData = parseQuestions(fullText);
 
       if (quizData.length === 0) {
-        alert('No se encontraron preguntas. Revisa el formato del PDF.');
+        alert('No se encontraron preguntas. Revisa el formato del PDF.\n\nAsegúrate de que:\n1. El PDF tiene texto seleccionable (no es una imagen)\n2. Sigue el formato: Pregunta + 4 opciones (a-d) + Respuesta correcta');
         location.reload();
         return;
       }
@@ -418,79 +423,63 @@ Respuesta correcta: b
 
   function parseQuestions(text) {
     const questions = [];
-    text = text.replace(/\s+/g, ' ').trim();
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
 
-    const regex =
-      /(?:Pregunta\s*\d*\s*[:.]?\s*|\b(\d+)\s*[.):]\s*)([^a-dA-D]*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)\s*([a-dA-D])\s*[.):]\s*(.*?)(?:Respuesta\s*(?:correcta)?\s*[:.]?\s*([a-dA-D])|Soluci[oó]n\s*[:.]?\s*([a-dA-D])|Correcta\s*[:.]?\s*([a-dA-D]))/gi;
-
-    let match;
-    let index = 0;
-
-    while ((match = regex.exec(text)) !== null) {
-      const questionText = (match[2] || '').trim();
-      const optA = match[4].trim();
-      const optB = match[6].trim();
-      const optC = match[8].trim();
-      const optD = match[10].trim();
-      const answer = (match[11] || match[12] || match[13] || '').toLowerCase().trim();
-
-      if (questionText && optA && optB && optC && optD && answer) {
-        questions.push({
-          id: index++,
-          question: questionText,
-          options: { a: optA, b: optB, c: optC, d: optD },
-          correct: answer
-        });
-      }
-    }
-
-    if (questions.length === 0) {
-      return parseLineByLine(text);
-    }
-
-    return questions;
-  }
-
-  function parseLineByLine(text) {
-    const questions = [];
-    const lines = text.split(/\n/).map(l => l.trim()).filter(l => l);
-
-    let current = null;
+    let currentQuestion = null;
+    let optionCount = 0;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      const qMatch = line.match(/(?:Pregunta\s*\d*\s*[:.]?\s*)?(.+?\?)\s*$/i) ||
-                     line.match(/^\d+\s*[.):]\s*(.+)/);
-      if (qMatch && !current) {
-        current = { question: qMatch[1] || qMatch[0], options: {}, correct: null };
+      // Detectar inicio de pregunta
+      const questionMatch = line.match(/^(?:Pregunta\s*\d*[:.]?\s*|Pregunta\s*\d+\s*[-.)]\s*)?(.+?)(?:\?|$)/i);
+      
+      if (questionMatch && !line.match(/^[a-dA-D][.)]\s/)) {
+        // Si ya teníamos una pregunta completa, guardarla
+        if (currentQuestion && currentQuestion.options && 
+            Object.keys(currentQuestion.options).length === 4 && currentQuestion.correct) {
+          questions.push(currentQuestion);
+        }
+        
+        currentQuestion = {
+          id: questions.length,
+          question: questionMatch[1].trim(),
+          options: {},
+          correct: null
+        };
+        optionCount = 0;
         continue;
       }
 
-      if (current) {
-        const oMatch = line.match(/^([a-dA-D])\s*[.):]\s*(.+)/);
-        if (oMatch) {
-          current.options[oMatch[1].toLowerCase()] = oMatch[2].trim();
-          continue;
-        }
-
-        const aMatch = line.match(/(?:Respuesta\s*(?:correcta)?|Soluci[oó]n|Correcta)\s*[:.]?\s*([a-dA-D])/i);
-        if (aMatch) {
-          current.correct = aMatch[1].toLowerCase();
-          if (Object.keys(current.options).length === 4 && current.correct) {
-            current.id = questions.length;
-            questions.push(current);
-          }
-          current = null;
-          continue;
-        }
-
-        if (!line.match(/^[a-dA-D]\s*[.):]/) &&
-            !line.match(/Respuesta|Soluci[oó]n|Correcta/i) &&
-            Object.keys(current.options).length === 0) {
-          current.question += ' ' + line;
-        }
+      // Detectar opciones
+      const optionMatch = line.match(/^([a-dA-D])[.)]\s*(.+)/);
+      if (optionMatch && currentQuestion) {
+        const letter = optionMatch[1].toLowerCase();
+        const text = optionMatch[2].trim();
+        currentQuestion.options[letter] = text;
+        optionCount++;
+        continue;
       }
+
+      // Detectar respuesta correcta
+      const answerMatch = line.match(/(?:Respuesta\s*(?:correcta)?|Soluci[oó]n|Correcta|Resp)\s*[:.)]?\s*([a-dA-D])/i);
+      if (answerMatch && currentQuestion) {
+        currentQuestion.correct = answerMatch[1].toLowerCase();
+        continue;
+      }
+
+      // Si la línea no encaja y estamos en una pregunta, puede ser continuación
+      if (currentQuestion && optionCount === 0 && 
+          !line.match(/^[a-dA-D][.)]/) &&
+          !line.match(/Respuesta|Soluci[oó]n|Correcta/i)) {
+        currentQuestion.question += ' ' + line;
+      }
+    }
+
+    // Añadir la última pregunta si está completa
+    if (currentQuestion && currentQuestion.options && 
+        Object.keys(currentQuestion.options).length === 4 && currentQuestion.correct) {
+      questions.push(currentQuestion);
     }
 
     return questions;
@@ -514,7 +503,7 @@ Respuesta correcta: b
               <label>
                 <input type="radio" name="q${q.id}" value="${letter}"
                        onchange="updateProgress()">
-                <span><strong>${letter.toUpperCase()})</strong> ${escapeHtml(q.options[letter])}</span>
+                <span><strong>${letter.toUpperCase()})</strong> ${escapeHtml(q.options[letter] || 'Opción no disponible')}</span>
               </label>
             </li>
           `).join('')}
@@ -561,8 +550,8 @@ Respuesta correcta: b
           ${isCorrect ? '✅ Correcta' : '❌ Incorrecta'}
         </span>
         <h4 style="margin:8px 0 6px;">${i + 1}. ${escapeHtml(q.question)}</h4>
-        <p>Tu respuesta: <strong>${userAnswer ? userAnswer.toUpperCase() + ') ' + escapeHtml(q.options[userAnswer]) : 'Sin responder'}</strong></p>
-        ${!isCorrect ? `<p class="correct-answer-text">✔ Respuesta correcta: ${q.correct.toUpperCase()}) ${escapeHtml(q.options[q.correct])}</p>` : ''}
+        <p>Tu respuesta: <strong>${userAnswer ? userAnswer.toUpperCase() + ') ' + escapeHtml(q.options[userAnswer] || '') : 'Sin responder'}</strong></p>
+        ${!isCorrect ? `<p class="correct-answer-text">✔ Respuesta correcta: ${q.correct.toUpperCase()}) ${escapeHtml(q.options[q.correct] || '')}</p>` : ''}
       `;
       reviewContainer.appendChild(card);
     });
@@ -576,9 +565,9 @@ Respuesta correcta: b
     document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
     document.getElementById('scoreLabel').textContent = `${pct}%`;
     document.getElementById('scoreMessage').textContent =
-      pct >= 90 ? '🏆 ¡Excelente!' :
+      pct >= 90 ? ' ¡Excelente!' :
       pct >= 70 ? '👏 ¡Muy bien!' :
-      pct >= 50 ? '👍 ¡Aprobado!' : ' Sigue practicando';
+      pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
