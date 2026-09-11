@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preguntas desde PDF v08</title>
+<title>Preguntas desde PDF v09</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -26,10 +26,11 @@
   .btn-secondary:hover { background: #5a6268; }
   .btn-danger { background: #e63946; color: #fff; font-size: 0.85rem; padding: 8px 16px; }
   .btn-danger:hover { background: #c1121f; }
+  .btn-small { padding: 8px 16px; font-size: 0.9rem; }
   #loading { display: none; text-align: center; padding: 30px; }
   .spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top-color: #4361ee; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 15px; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  #quizSection, #debugSection { display: none; }
+  #quizSection, #debugSection, #librarySection { display: none; }
   .progress-bar-container { background: #e0e0e0; border-radius: 10px; height: 10px; margin-bottom: 25px; overflow: hidden; }
   .progress-bar { height: 100%; background: linear-gradient(90deg, #4361ee, #2ec4b6); border-radius: 10px; transition: width 0.4s ease; width: 0%; }
   .question-card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
@@ -63,6 +64,16 @@
   .debug-box summary { color: #e63946; }
   .debug-box pre { background: #fff; color: #333; max-height: 300px; overflow-y: auto; border: 1px solid #fde2e4; }
   
+  /* Biblioteca de exámenes */
+  .exam-list { margin-top: 20px; }
+  .exam-card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+  .exam-info { flex: 1; min-width: 200px; }
+  .exam-info h3 { font-size: 1.1rem; color: #16213e; margin-bottom: 5px; }
+  .exam-info p { font-size: 0.9rem; color: #666; }
+  .exam-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .best-score { display: inline-block; background: #d4f5f0; color: #1a936f; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-top: 5px; }
+  .empty-library { text-align: center; color: #999; padding: 40px 20px; font-style: italic; }
+  
   .history-section { background: #fff; border-radius: 12px; padding: 20px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
   .history-section h3 { margin-bottom: 15px; color: #16213e; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
   .history-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -78,32 +89,30 @@
     .results-card { padding: 20px; } 
     .btn { padding: 14px 24px; width: 100%; margin: 5px 0; } 
     .history-table th, .history-table td { padding: 8px 4px; font-size: 0.8rem; }
+    .exam-card { flex-direction: column; align-items: flex-start; }
+    .exam-actions { width: 100%; }
+    .exam-actions .btn { flex: 1; }
   }
 </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>📝 Preguntas desde PDF v08</h1>
-  <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
+  <h1>📝 Preguntas desde PDF v09</h1>
+  <p class="subtitle">Biblioteca de exámenes interactivos</p>
 
-  <div id="uploadSection">
+  <!-- BIBLIOTECA DE EXÁMENES -->
+  <div id="librarySection">
     <div class="upload-zone" id="dropZone">
       <div class="icon" id="dropIcon">📄</div>
-      <p id="dropText"><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
+      <p id="dropText"><strong>Arrastra tu PDF aquí</strong> o haz clic para añadir un examen</p>
       <input type="file" id="fileInput" accept=".pdf">
       <br>
-      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Seleccionar PDF</button>
+      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Añadir nuevo examen</button>
     </div>
-    
-    <div class="history-section">
-      <h3>
-        📊 Historial de intentos
-        <button class="btn btn-danger" onclick="clearHistory()">Borrar historial</button>
-      </h3>
-      <div id="historyContainer">
-        <p class="empty-history">Aún no has realizado ningún test.</p>
-      </div>
+
+    <div class="exam-list" id="examList">
+      <p class="empty-library">No hay exámenes en la biblioteca. Sube tu primer PDF para empezar.</p>
     </div>
 
     <details class="format-help">
@@ -119,7 +128,7 @@ Respuesta correcta: c</pre>
 
   <div id="loading">
     <div class="spinner"></div>
-    <p id="loadingText">Leyendo PDF y generando preguntas…</p>
+    <p id="loadingText">Procesando examen…</p>
   </div>
 
   <div id="debugSection">
@@ -127,19 +136,23 @@ Respuesta correcta: c</pre>
       <details open>
         <summary id="debugTitle">⚠️ No se pudieron leer las preguntas</summary>
         <pre id="debugText" style="margin-top:10px;"></pre>
-        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;">🔄 Volver a intentar</button>
+        <button class="btn btn-primary" onclick="showLibrary()" style="margin-top:15px;">🔄 Volver a la biblioteca</button>
       </details>
     </div>
   </div>
 
+  <!-- TEST EN CURSO -->
   <div id="quizSection">
+    <h2 id="currentExamTitle" style="text-align:center; margin-bottom:20px; color:#16213e;"></h2>
     <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
     <div id="questionsContainer"></div>
     <div class="submit-area">
       <button class="btn btn-success" onclick="checkAnswers()">✅ Enviar respuestas</button>
+      <button class="btn btn-secondary" onclick="showLibrary()">📚 Volver a la biblioteca</button>
     </div>
   </div>
 
+  <!-- RESULTADOS -->
   <div id="resultsSection">
     <div class="results-card">
       <div class="score-circle" id="scoreCircle">
@@ -150,15 +163,17 @@ Respuesta correcta: c</pre>
     </div>
     <div id="reviewContainer"></div>
     <div class="submit-area" style="margin-top:20px;">
-      <button class="btn btn-primary" onclick="restartQuiz()">🔄 Repetir este mismo test</button>
-      <button class="btn btn-secondary" onclick="location.reload()"> Subir un PDF diferente</button>
+      <button class="btn btn-primary" onclick="restartQuiz()">🔄 Repetir este examen</button>
+      <button class="btn btn-secondary" onclick="showLibrary()"> Volver a la biblioteca</button>
     </div>
   </div>
 </div>
 
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  
   let quizData = [];
+  let currentExamId = null;
 
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
@@ -181,12 +196,15 @@ Respuesta correcta: c</pre>
   function handleFileSelection(file) {
     dropZone.classList.add('success');
     dropIcon.textContent = '✅';
-    dropText.innerHTML = `<strong>Fichero "${file.name}" subido.</strong><br><span style="font-size:0.9rem; color:#666;">Procesando preguntas...</span>`;
+    dropText.innerHTML = `<strong>Procesando "${file.name}"…</strong>`;
+    document.getElementById('librarySection').style.display = 'none';
     document.getElementById('loading').style.display = 'block';
     processFile(file);
   }
 
-  window.addEventListener('DOMContentLoaded', renderHistory);
+  window.addEventListener('DOMContentLoaded', () => {
+    showLibrary();
+  });
 
   async function processFile(file) {
     try {
@@ -201,113 +219,89 @@ Respuesta correcta: c</pre>
         fullText += strings.join('\n') + '\n';
       }
 
-      // === PRE-PROCESAMIENTO v08: SEPARACIÓN DE PREGUNTAS PEGADAS ===
       fullText = fullText.replace(/([^\n])\s*(Pregunta\s+\d+\s*[:.])/gi, '$1\n$2');
       fullText = fullText.replace(/([a-dA-D][\.\)]\s*[^.\n]{10,}?)\s+(Pregunta\s+\d+)/gi, '$1\n$2');
 
-      quizData = parseQuestions(fullText);
+      const questions = parseQuestions(fullText);
 
-      console.log('Preguntas encontradas:', quizData.length);
-
-      if (quizData.length === 0) {
+      if (questions.length === 0) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('debugSection').style.display = 'block';
-        
-        let errorMsg = "⚠️ No se encontraron preguntas. Texto extraído (primeras 500 caracteres):\n\n";
-        errorMsg += fullText.substring(0, 500);
-        
-        document.getElementById('debugText').textContent = errorMsg;
+        document.getElementById('debugText').textContent = "⚠️ No se encontraron preguntas.\n\n" + fullText.substring(0, 500);
         return;
       }
 
-      renderQuiz();
+      // Guardar examen en la biblioteca
+      const exam = {
+        id: Date.now().toString(),
+        name: file.name,
+        date: new Date().toLocaleDateString('es-ES'),
+        questions: questions,
+        attempts: []
+      };
+
+      saveExam(exam);
+      showLibrary();
     } catch (err) {
       console.error(err);
       document.getElementById('loading').style.display = 'none';
       document.getElementById('debugSection').style.display = 'block';
-      document.getElementById('debugText').textContent = "❌ Error técnico al leer el PDF: " + err.message;
+      document.getElementById('debugText').textContent = "❌ Error: " + err.message;
     }
   }
 
   function parseQuestions(text) {
     const questions = [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
     let currentQ = null;
     let lastOptionLetter = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      const questionMatch = line.match(/^Pregunta\s+\d+\s*[:.]\s*(.+)$/i);
       
-      // 1. Detectar inicio de pregunta
-      const questionMatch = line.match(/^(?:Pregunta\s+\d+\s*[:.]\s*)?(.+)$/i);
-      
-      if (questionMatch && line.match(/^Pregunta\s+\d+/i)) {
-        // Guardar pregunta anterior si está completa
+      if (questionMatch) {
         if (currentQ && currentQ.correct && Object.keys(currentQ.options).length >= 2) {
           questions.push(currentQ);
         }
-        
-        // Iniciar nueva pregunta
-        currentQ = {
-          id: questions.length,
-          question: questionMatch[1].trim(),
-          options: {},
-          correct: null
-        };
+        currentQ = { id: questions.length, question: questionMatch[1].trim(), options: {}, correct: null };
         lastOptionLetter = null;
         continue;
       }
 
       if (!currentQ) continue;
 
-      // 2. Detectar opciones: "a) texto" o "a. texto" o "A) texto"
       const optionMatch = line.match(/^([a-dA-D])\s*[.)]\s*(.+)$/);
       if (optionMatch) {
         const letter = optionMatch[1].toLowerCase();
-        const text = optionMatch[2].trim();
-        currentQ.options[letter] = text;
+        currentQ.options[letter] = optionMatch[2].trim();
         lastOptionLetter = letter;
         continue;
       }
 
-      // 3. Detectar respuesta correcta
       const answerMatch = line.match(/^Respuesta\s+correcta\s*:\s*([a-dA-D])\s*$/i);
       if (answerMatch) {
         currentQ.correct = answerMatch[1].toLowerCase();
         continue;
       }
 
-      // 4. CLAVE: Si la última opción parece incompleta, añadir esta línea como continuación
-      // Una opción está incompleta si:
-      // - Es muy corta (menos de 15 caracteres)
-      // - No termina en punto
-      // - Termina en una letra suelta (como "n" o "La")
       if (lastOptionLetter && currentQ.options[lastOptionLetter]) {
         const lastOptionText = currentQ.options[lastOptionLetter];
         const isComplete = lastOptionText.length > 20 && lastOptionText.endsWith('.');
-        
         if (!isComplete) {
-          // Verificar que esta línea NO es el inicio de otra opción o pregunta
-          const isNewElement = line.match(/^[a-dA-D]\s*[.)]/) || 
-                              line.match(/^Pregunta\s+\d+/i) ||
-                              line.match(/^Respuesta\s+correcta/i);
-          
+          const isNewElement = line.match(/^[a-dA-D]\s*[.)]/) || line.match(/^Pregunta\s+\d+/i) || line.match(/^Respuesta\s+correcta/i);
           if (!isNewElement) {
-            // Añadir como continuación de la opción anterior
             currentQ.options[lastOptionLetter] += ' ' + line;
             continue;
           }
         }
       }
 
-      // 5. Si no hay opciones aún, puede ser continuación del enunciado
       if (Object.keys(currentQ.options).length === 0 && !lastOptionLetter) {
         currentQ.question += ' ' + line;
       }
     }
 
-    // Añadir la última pregunta si está completa
     if (currentQ && currentQ.correct && Object.keys(currentQ.options).length >= 2) {
       questions.push(currentQ);
     }
@@ -315,10 +309,84 @@ Respuesta correcta: c</pre>
     return questions;
   }
 
-  function renderQuiz() {
+  // === GESTIÓN DE LA BIBLIOTECA ===
+
+  function getExams() {
+    try {
+      return JSON.parse(localStorage.getItem('examLibrary') || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveExam(exam) {
+    const exams = getExams();
+    exams.push(exam);
+    localStorage.setItem('examLibrary', JSON.stringify(exams));
+  }
+
+  function deleteExam(id) {
+    if (!confirm('¿Seguro que quieres eliminar este examen?')) return;
+    const exams = getExams().filter(e => e.id !== id);
+    localStorage.setItem('examLibrary', JSON.stringify(exams));
+    showLibrary();
+  }
+
+  function showLibrary() {
+    document.getElementById('quizSection').style.display = 'none';
+    document.getElementById('resultsSection').style.display = 'none';
     document.getElementById('loading').style.display = 'none';
-    document.getElementById('uploadSection').style.display = 'none';
+    document.getElementById('debugSection').style.display = 'none';
+    document.getElementById('librarySection').style.display = 'block';
+
+    const exams = getExams();
+    const container = document.getElementById('examList');
+
+    if (exams.length === 0) {
+      container.innerHTML = '<p class="empty-library">No hay exámenes en la biblioteca. Sube tu primer PDF para empezar.</p>';
+      return;
+    }
+
+    let html = '<h2 style="margin:20px 0 15px; color:#16213e;">📚 Mis exámenes</h2>';
+    exams.forEach(exam => {
+      const bestAttempt = exam.attempts.length > 0 ? Math.max(...exam.attempts.map(a => a.percentage)) : null;
+      const bestScoreHtml = bestAttempt !== null ? `<span class="best-score">Mejor: ${bestAttempt}%</span>` : '';
+      
+      html += `
+        <div class="exam-card">
+          <div class="exam-info">
+            <h3>${escapeHtml(exam.name)}</h3>
+            <p>📅 ${exam.date} · ❓ ${exam.questions.length} preguntas · 📝 ${exam.attempts.length} intentos</p>
+            ${bestScoreHtml}
+          </div>
+          <div class="exam-actions">
+            <button class="btn btn-primary btn-small" onclick="startExam('${exam.id}')">▶️ Hacer test</button>
+            <button class="btn btn-danger btn-small" onclick="deleteExam('${exam.id}')">🗑️ Eliminar</button>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  }
+
+  function startExam(id) {
+    const exams = getExams();
+    const exam = exams.find(e => e.id === id);
+    if (!exam) return;
+
+    currentExamId = id;
+    quizData = exam.questions;
+
+    document.getElementById('currentExamTitle').textContent = exam.name;
+    document.getElementById('librarySection').style.display = 'none';
     document.getElementById('quizSection').style.display = 'block';
+
+    renderQuiz();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function renderQuiz() {
     const container = document.getElementById('questionsContainer');
     container.innerHTML = '';
 
@@ -382,7 +450,7 @@ Respuesta correcta: c</pre>
     });
 
     const pct = Math.round((score / quizData.length) * 100);
-    saveToHistory(score, quizData.length, pct);
+    saveAttempt(score, quizData.length, pct);
 
     document.getElementById('quizSection').style.display = 'none';
     document.getElementById('resultsSection').style.display = 'block';
@@ -391,7 +459,7 @@ Respuesta correcta: c</pre>
     circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
     document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
     document.getElementById('scoreLabel').textContent = `${pct}%`;
-    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : ' Sigue practicando';
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -404,43 +472,19 @@ Respuesta correcta: c</pre>
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function saveToHistory(score, total, percentage) {
-    try {
-      const attempt = {
-        date: new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        score: `${score}/${total}`,
-        percentage: `${percentage}%`
-      };
-      let history = JSON.parse(localStorage.getItem('quizHistory') || '[]');
-      history.unshift(attempt);
-      if (history.length > 20) history.pop(); 
-      localStorage.setItem('quizHistory', JSON.stringify(history));
-    } catch (e) { console.error('No se pudo guardar en el historial:', e); }
-  }
+  function saveAttempt(score, total, percentage) {
+    const exams = getExams();
+    const exam = exams.find(e => e.id === currentExamId);
+    if (!exam) return;
 
-  function renderHistory() {
-    const container = document.getElementById('historyContainer');
-    try {
-      const history = JSON.parse(localStorage.getItem('quizHistory') || '[]');
-      if (history.length === 0) {
-        container.innerHTML = '<p class="empty-history">Aún no has realizado ningún test.</p>';
-        return;
-      }
-      let html = '<table class="history-table"><thead><tr><th>Fecha</th><th>Puntuación</th><th>%</th></tr></thead><tbody>';
-      history.forEach(item => {
-        const colorClass = parseInt(item.percentage) >= 50 ? 'color: #1a936f; font-weight:600;' : 'color: #c1121f; font-weight:600;';
-        html += `<tr><td>${item.date}</td><td>${item.score}</td><td style="${colorClass}">${item.percentage}</td></tr>`;
-      });
-      html += '</tbody></table>';
-      container.innerHTML = html;
-    } catch (e) { container.innerHTML = '<p class="empty-history">Error al cargar el historial.</p>'; }
-  }
+    exam.attempts.push({
+      date: new Date().toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      score: `${score}/${total}`,
+      percentage: percentage
+    });
 
-  function clearHistory() {
-    if (confirm('¿Estás seguro de que quieres borrar todo el historial de intentos?')) {
-      localStorage.removeItem('quizHistory');
-      renderHistory();
-    }
+    if (exam.attempts.length > 20) exam.attempts.shift();
+    localStorage.setItem('examLibrary', JSON.stringify(exams));
   }
 </script>
 </body>
