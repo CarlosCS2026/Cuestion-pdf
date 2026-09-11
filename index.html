@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preguntas desde PDF v07</title>
+<title>Preguntas desde PDF v08</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -84,12 +84,12 @@
 <body>
 
 <div class="container">
-  <h1>📝 Preguntas desde PDF v07</h1>
+  <h1>📝 Preguntas desde PDF v08</h1>
   <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
 
   <div id="uploadSection">
     <div class="upload-zone" id="dropZone">
-      <div class="icon" id="dropIcon"></div>
+      <div class="icon" id="dropIcon">📄</div>
       <p id="dropText"><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
       <input type="file" id="fileInput" accept=".pdf">
       <br>
@@ -107,7 +107,7 @@
     </div>
 
     <details class="format-help">
-      <summary> Formato esperado del PDF</summary>
+      <summary>📋 Formato esperado del PDF</summary>
       <pre>Pregunta 1: ¿Cuál es la capital de Francia?
 a) Londres
 b) Madrid
@@ -127,7 +127,7 @@ Respuesta correcta: c</pre>
       <details open>
         <summary id="debugTitle">⚠️ No se pudieron leer las preguntas</summary>
         <pre id="debugText" style="margin-top:10px;"></pre>
-        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;"> Volver a intentar</button>
+        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;">🔄 Volver a intentar</button>
       </details>
     </div>
   </div>
@@ -201,15 +201,9 @@ Respuesta correcta: c</pre>
         fullText += strings.join('\n') + '\n';
       }
 
-      // === PRE-PROCESAMIENTO v07: SEPARACIÓN DE PREGUNTAS PEGADAS ===
-      
-      // Separar "Pregunta X:" que venga pegado a otro texto (ej: "Respuesta correcta: b Pregunta 27:")
+      // === PRE-PROCESAMIENTO v08: SEPARACIÓN DE PREGUNTAS PEGADAS ===
       fullText = fullText.replace(/([^\n])\s*(Pregunta\s+\d+\s*[:.])/gi, '$1\n$2');
-      
-      // Separar opciones que vengan pegadas (ej: "d) Texto. Pregunta 22:")
       fullText = fullText.replace(/([a-dA-D][\.\)]\s*[^.\n]{10,}?)\s+(Pregunta\s+\d+)/gi, '$1\n$2');
-      
-      // ================================================================
 
       quizData = parseQuestions(fullText);
 
@@ -240,14 +234,15 @@ Respuesta correcta: c</pre>
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
     let currentQ = null;
+    let lastOptionLetter = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
-      // 1. Detectar inicio de pregunta: "Pregunta X: texto?"
-      const questionMatch = line.match(/^Pregunta\s+\d+\s*[:.]\s*(.+)$/i);
+      // 1. Detectar inicio de pregunta
+      const questionMatch = line.match(/^(?:Pregunta\s+\d+\s*[:.]\s*)?(.+)$/i);
       
-      if (questionMatch) {
+      if (questionMatch && line.match(/^Pregunta\s+\d+/i)) {
         // Guardar pregunta anterior si está completa
         if (currentQ && currentQ.correct && Object.keys(currentQ.options).length >= 2) {
           questions.push(currentQ);
@@ -260,34 +255,59 @@ Respuesta correcta: c</pre>
           options: {},
           correct: null
         };
+        lastOptionLetter = null;
         continue;
       }
 
       if (!currentQ) continue;
 
-      // 2. Detectar opciones: "a) texto" o "a. texto"
+      // 2. Detectar opciones: "a) texto" o "a. texto" o "A) texto"
       const optionMatch = line.match(/^([a-dA-D])\s*[.)]\s*(.+)$/);
       if (optionMatch) {
         const letter = optionMatch[1].toLowerCase();
         const text = optionMatch[2].trim();
         currentQ.options[letter] = text;
+        lastOptionLetter = letter;
         continue;
       }
 
-      // 3. Detectar respuesta correcta: "Respuesta correcta: X"
+      // 3. Detectar respuesta correcta
       const answerMatch = line.match(/^Respuesta\s+correcta\s*:\s*([a-dA-D])\s*$/i);
       if (answerMatch) {
         currentQ.correct = answerMatch[1].toLowerCase();
         continue;
       }
 
-      // 4. Si la línea no encaja con nada, puede ser continuación del texto de la pregunta
-      if (Object.keys(currentQ.options).length === 0) {
+      // 4. CLAVE: Si la última opción parece incompleta, añadir esta línea como continuación
+      // Una opción está incompleta si:
+      // - Es muy corta (menos de 15 caracteres)
+      // - No termina en punto
+      // - Termina en una letra suelta (como "n" o "La")
+      if (lastOptionLetter && currentQ.options[lastOptionLetter]) {
+        const lastOptionText = currentQ.options[lastOptionLetter];
+        const isComplete = lastOptionText.length > 20 && lastOptionText.endsWith('.');
+        
+        if (!isComplete) {
+          // Verificar que esta línea NO es el inicio de otra opción o pregunta
+          const isNewElement = line.match(/^[a-dA-D]\s*[.)]/) || 
+                              line.match(/^Pregunta\s+\d+/i) ||
+                              line.match(/^Respuesta\s+correcta/i);
+          
+          if (!isNewElement) {
+            // Añadir como continuación de la opción anterior
+            currentQ.options[lastOptionLetter] += ' ' + line;
+            continue;
+          }
+        }
+      }
+
+      // 5. Si no hay opciones aún, puede ser continuación del enunciado
+      if (Object.keys(currentQ.options).length === 0 && !lastOptionLetter) {
         currentQ.question += ' ' + line;
       }
     }
 
-    // === CLAVE: Añadir la última pregunta si está completa ===
+    // Añadir la última pregunta si está completa
     if (currentQ && currentQ.correct && Object.keys(currentQ.options).length >= 2) {
       questions.push(currentQ);
     }
@@ -371,7 +391,7 @@ Respuesta correcta: c</pre>
     circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
     document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
     document.getElementById('scoreLabel').textContent = `${pct}%`;
-    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : ' Sigue practicando';
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
