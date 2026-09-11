@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preguntas desde PDF v01</title>
+<title>Preguntas desde PDF v02</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -84,7 +84,7 @@
 <body>
 
 <div class="container">
-  <h1> Preguntas desde PDF v01</h1>
+  <h1>📝 Preguntas desde PDF v02</h1>
   <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
 
   <div id="uploadSection">
@@ -178,7 +178,6 @@ Respuesta correcta: c</pre>
     if (ev.target.files[0]) handleFileSelection(ev.target.files[0]);
   });
 
-  // Muestra confirmación visual de que el archivo se ha seleccionado
   function handleFileSelection(file) {
     dropZone.classList.add('success');
     dropIcon.textContent = '✅';
@@ -202,6 +201,14 @@ Respuesta correcta: c</pre>
         fullText += strings.join('\n') + '\n';
       }
 
+      // --- NUEVO: PRE-PROCESAMIENTO PARA ARREGLAR LÍNEAS FUSIONADAS ---
+      // 1. Forzar salto de línea antes de "Pregunta X"
+      fullText = fullText.replace(/(Pregunta\s+\d+)/gi, '\n$1');
+      
+      // 2. Forzar salto de línea si hay un número seguido de punto/paréntesis pegado a un punto final (ej: "...opción. 22. Pregunta...")
+      fullText = fullText.replace(/(\.\s+)(\d{1,3}[\.\)])\s+/g, '$1\n$2 ');
+      // -----------------------------------------------------------------
+
       quizData = parseQuestions(fullText);
 
       if (quizData.length === 0) {
@@ -210,9 +217,9 @@ Respuesta correcta: c</pre>
         
         let errorMsg = "";
         if (fullText.trim().length < 50) {
-          errorMsg = "❌ El PDF parece estar vacío o ser una imagen escaneada (foto). El sistema no puede leer imágenes. Por favor, usa un PDF con texto seleccionable (creado desde Word, Docs, etc.).";
+          errorMsg = "❌ El PDF parece estar vacío o ser una imagen escaneada (foto). El sistema no puede leer imágenes. Por favor, usa un PDF con texto seleccionable.";
         } else {
-          errorMsg = "⚠️ Se leyó el texto, pero no se encontraron preguntas con el formato esperado.\n\nEl formato debe ser:\nPregunta X: [texto con signo de interrogación]\na) [opción]\nb) [opción]\nc) [opción]\nd) [opción]\nRespuesta correcta: [letra]\n\n--- Texto extraído (inicio) ---";
+          errorMsg = "️ Se leyó el texto, pero no se encontraron preguntas con el formato esperado.\n\n--- Texto extraído (inicio) ---";
         }
         
         document.getElementById('debugText').textContent = errorMsg + "\n" + (fullText.length > 600 ? fullText.substring(0, 600) + '...' : fullText);
@@ -236,7 +243,10 @@ Respuesta correcta: c</pre>
 
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i];
-      const isQuestionStart = line.match(/^(?:Pregunta\s*\d+[:.-]?\s*)?(.+?\?)\s*$/i) || line.match(/^\d+[\s.:)]\s+(.+)/);
+      
+      // Detectar inicio de pregunta (busca "Pregunta X" o "X." al inicio)
+      const isQuestionStart = line.match(/^(?:Pregunta\s*\d+[:.-]?\s*)?(.+?\?)\s*$/i) || 
+                              line.match(/^\d+[\s.:)]\s+(.+)/);
       
       if (isQuestionStart && !line.match(/^[a-dA-D][.)]/i)) {
         if (currentQ && currentQ.correct) questions.push(currentQ);
@@ -364,7 +374,7 @@ Respuesta correcta: c</pre>
     circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
     document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
     document.getElementById('scoreLabel').textContent = `${pct}%`;
-    document.getElementById('scoreMessage').textContent = pct >= 90 ? ' ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : ' Sigue practicando';
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
