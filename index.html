@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preguntas desde PDF v05</title>
+<title>Preguntas desde PDF v06</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -84,12 +84,12 @@
 <body>
 
 <div class="container">
-  <h1> Preguntas desde PDF v05</h1>
+  <h1>📝 Preguntas desde PDF v06</h1>
   <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
 
   <div id="uploadSection">
     <div class="upload-zone" id="dropZone">
-      <div class="icon" id="dropIcon">📄</div>
+      <div class="icon" id="dropIcon"></div>
       <p id="dropText"><strong>Arrastra tu PDF aquí</strong> o haz clic para seleccionar</p>
       <input type="file" id="fileInput" accept=".pdf">
       <br>
@@ -107,7 +107,7 @@
     </div>
 
     <details class="format-help">
-      <summary>📋 Formato esperado del PDF</summary>
+      <summary> Formato esperado del PDF</summary>
       <pre>Pregunta 1: ¿Cuál es la capital de Francia?
 a) Londres
 b) Madrid
@@ -151,7 +151,7 @@ Respuesta correcta: c</pre>
     <div id="reviewContainer"></div>
     <div class="submit-area" style="margin-top:20px;">
       <button class="btn btn-primary" onclick="restartQuiz()">🔄 Repetir este mismo test</button>
-      <button class="btn btn-secondary" onclick="location.reload()"> Subir un PDF diferente</button>
+      <button class="btn btn-secondary" onclick="location.reload()">📄 Subir un PDF diferente</button>
     </div>
   </div>
 </div>
@@ -198,27 +198,16 @@ Respuesta correcta: c</pre>
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         const strings = content.items.map(item => item.str);
-        fullText += strings.join(' ') + ' ';
+        fullText += strings.join('\n') + '\n';
       }
 
-      // === PRE-PROCESAMIENTO v05: SEPARACIÓN ULTRA-AGRESIVA ===
+      // === PRE-PROCESAMIENTO v06: SEPARACIÓN DE PREGUNTAS PEGADAS ===
       
-      // Paso 1: Separar CADA "Pregunta X:" con un salto de línea FORZADO
-      // Esto es CLAVE: busca "Pregunta" seguido de número y separador
-      fullText = fullText.replace(/Pregunta\s+(\d+)\s*[:.]/gi, '\n\nPREGUNTA_$1_MARKER');
+      // Separar "Pregunta X:" que venga pegado a otro texto (ej: "Respuesta correcta: b Pregunta 27:")
+      fullText = fullText.replace(/([^\n])\s*(Pregunta\s+\d+\s*[:.])/gi, '$1\n$2');
       
-      // Paso 2: Separar opciones (a), b), c), d))
-      fullText = fullText.replace(/\s+([a-dA-D])\s*[).]/g, '\n$1)');
-      
-      // Paso 3: Separar "Respuesta correcta: X"
-      fullText = fullText.replace(/\s+Respuesta\s+correcta\s*:\s*([a-dA-D])/gi, '\nRespuesta correcta: $1');
-      
-      // Paso 4: Restaurar el marcador a "Pregunta X:"
-      fullText = fullText.replace(/PREGUNTA_(\d+)_MARKER/g, 'Pregunta $1:');
-      
-      // Paso 5: Limpiar espacios múltiples y normalizar
-      fullText = fullText.replace(/[ \t]+/g, ' ');
-      fullText = fullText.replace(/\n\s*\n+/g, '\n\n');
+      // Separar opciones que vengan pegadas (ej: "d) Texto. Pregunta 22:")
+      fullText = fullText.replace(/([a-dA-D][\.\)]\s*[^.\n]{10,}?)\s+(Pregunta\s+\d+)/gi, '$1\n$2');
       
       // ================================================================
 
@@ -246,60 +235,62 @@ Respuesta correcta: c</pre>
 
   function parseQuestions(text) {
     const questions = [];
-    const blocks = text.split('\n\n').filter(block => block.trim().length > 0);
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
     let currentQ = null;
-    let currentOptions = {};
-    let currentAnswer = null;
+    let optionCount = 0;
 
-    for (let block of blocks) {
-      const line = block.trim();
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       
-      // Detectar inicio de pregunta: "Pregunta X: texto?"
-      const questionMatch = line.match(/^Pregunta\s*\d+\s*[:.]\s*(.+?\?)$/i);
+      // 1. Detectar inicio de pregunta: "Pregunta X: texto?"
+      const questionMatch = line.match(/^Pregunta\s+\d+\s*[:.]\s*(.+)$/i);
+      
       if (questionMatch) {
-        // Si ya teníamos una pregunta completa, guardarla
-        if (currentQ && currentAnswer && Object.keys(currentOptions).length >= 2) {
-          questions.push({
-            id: questions.length,
-            question: currentQ,
-            options: currentOptions,
-            correct: currentAnswer
-          });
+        // Guardar pregunta anterior si está completa
+        if (currentQ && currentQ.correct && optionCount >= 3) {
+          questions.push(currentQ);
         }
         
         // Iniciar nueva pregunta
-        currentQ = questionMatch[1].trim();
-        currentOptions = {};
-        currentAnswer = null;
+        currentQ = {
+          id: questions.length,
+          question: questionMatch[1].trim(),
+          options: {},
+          correct: null
+        };
+        optionCount = 0;
         continue;
       }
 
-      // Detectar opciones: "a) texto" o "a. texto"
-      const optionMatch = line.match(/^([a-dA-D])\)\s*(.+)$/);
+      if (!currentQ) continue;
+
+      // 2. Detectar opciones: "a) texto" o "a. texto"
+      const optionMatch = line.match(/^([a-dA-D])\s*[.)]\s*(.+)$/);
       if (optionMatch) {
         const letter = optionMatch[1].toLowerCase();
         const text = optionMatch[2].trim();
-        currentOptions[letter] = text;
+        currentQ.options[letter] = text;
+        optionCount++;
         continue;
       }
 
-      // Detectar respuesta correcta
-      const answerMatch = line.match(/^Respuesta\s+correcta\s*:\s*([a-dA-D])$/i);
+      // 3. Detectar respuesta correcta: "Respuesta correcta: X"
+      const answerMatch = line.match(/^Respuesta\s+correcta\s*:\s*([a-dA-D])\s*$/i);
       if (answerMatch) {
-        currentAnswer = answerMatch[1].toLowerCase();
+        currentQ.correct = answerMatch[1].toLowerCase();
         continue;
+      }
+
+      // 4. Si la línea no encaja con nada, puede ser continuación del texto de la pregunta
+      if (optionCount === 0) {
+        currentQ.question += ' ' + line;
       }
     }
 
     // Añadir la última pregunta si está completa
-    if (currentQ && currentAnswer && Object.keys(currentOptions).length >= 2) {
-      questions.push({
-        id: questions.length,
-        question: currentQ,
-        options: currentOptions,
-        correct: currentAnswer
-      });
+    if (currentQ && currentQ.correct && optionCount >= 3) {
+      questions.push(currentQ);
     }
 
     return questions;
