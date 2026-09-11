@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preguntas desde PDF v09</title>
+<title>Preguntas desde PDF v10</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -64,7 +64,6 @@
   .debug-box summary { color: #e63946; }
   .debug-box pre { background: #fff; color: #333; max-height: 300px; overflow-y: auto; border: 1px solid #fde2e4; }
   
-  /* Biblioteca de exámenes */
   .exam-list { margin-top: 20px; }
   .exam-card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
   .exam-info { flex: 1; min-width: 200px; }
@@ -73,14 +72,6 @@
   .exam-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .best-score { display: inline-block; background: #d4f5f0; color: #1a936f; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-top: 5px; }
   .empty-library { text-align: center; color: #999; padding: 40px 20px; font-style: italic; }
-  
-  .history-section { background: #fff; border-radius: 12px; padding: 20px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-  .history-section h3 { margin-bottom: 15px; color: #16213e; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-  .history-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  .history-table th, .history-table td { padding: 10px; text-align: left; border-bottom: 1px solid #e8e8e8; }
-  .history-table th { color: #666; font-weight: 600; }
-  .history-table tr:last-child td { border-bottom: none; }
-  .empty-history { text-align: center; color: #999; padding: 20px; font-style: italic; }
 
   @media (max-width: 600px) { 
     .container { padding: 12px; } 
@@ -88,7 +79,6 @@
     .upload-zone { padding: 25px 15px; } 
     .results-card { padding: 20px; } 
     .btn { padding: 14px 24px; width: 100%; margin: 5px 0; } 
-    .history-table th, .history-table td { padding: 8px 4px; font-size: 0.8rem; }
     .exam-card { flex-direction: column; align-items: flex-start; }
     .exam-actions { width: 100%; }
     .exam-actions .btn { flex: 1; }
@@ -98,10 +88,9 @@
 <body>
 
 <div class="container">
-  <h1>📝 Preguntas desde PDF v09</h1>
+  <h1>📝 Preguntas desde PDF v10</h1>
   <p class="subtitle">Biblioteca de exámenes interactivos</p>
 
-  <!-- BIBLIOTECA DE EXÁMENES -->
   <div id="librarySection">
     <div class="upload-zone" id="dropZone">
       <div class="icon" id="dropIcon">📄</div>
@@ -122,7 +111,9 @@ a) Londres
 b) Madrid
 c) París
 d) Berlín
-Respuesta correcta: c</pre>
+Respuesta correcta: c
+
+(El sistema también detecta automáticamente si las opciones están en la misma línea)</pre>
     </details>
   </div>
 
@@ -141,7 +132,6 @@ Respuesta correcta: c</pre>
     </div>
   </div>
 
-  <!-- TEST EN CURSO -->
   <div id="quizSection">
     <h2 id="currentExamTitle" style="text-align:center; margin-bottom:20px; color:#16213e;"></h2>
     <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
@@ -152,7 +142,6 @@ Respuesta correcta: c</pre>
     </div>
   </div>
 
-  <!-- RESULTADOS -->
   <div id="resultsSection">
     <div class="results-card">
       <div class="score-circle" id="scoreCircle">
@@ -163,8 +152,8 @@ Respuesta correcta: c</pre>
     </div>
     <div id="reviewContainer"></div>
     <div class="submit-area" style="margin-top:20px;">
-      <button class="btn btn-primary" onclick="restartQuiz()">🔄 Repetir este examen</button>
-      <button class="btn btn-secondary" onclick="showLibrary()"> Volver a la biblioteca</button>
+      <button class="btn btn-primary" onclick="restartQuiz()"> Repetir este examen</button>
+      <button class="btn btn-secondary" onclick="showLibrary()">📚 Volver a la biblioteca</button>
     </div>
   </div>
 </div>
@@ -219,8 +208,16 @@ Respuesta correcta: c</pre>
         fullText += strings.join('\n') + '\n';
       }
 
+      // === PRE-PROCESAMIENTO v10: CORRECCIÓN AUTOMÁTICA DE FORMATOS ===
+      
+      // 1. Separar preguntas pegadas
       fullText = fullText.replace(/([^\n])\s*(Pregunta\s+\d+\s*[:.])/gi, '$1\n$2');
-      fullText = fullText.replace(/([a-dA-D][\.\)]\s*[^.\n]{10,}?)\s+(Pregunta\s+\d+)/gi, '$1\n$2');
+      
+      // 2. NUEVO: Separar opciones que están en la misma línea (ej: "a) Texto b) Texto")
+      fullText = fullText.replace(/\s+([b-dB-D])[\.\)]\s/g, '\n$1) ');
+      
+      // 3. NUEVO: Separar la respuesta correcta si está en la misma línea
+      fullText = fullText.replace(/\s+(Respuesta\s+correcta\s*:)/gi, '\n$1');
 
       const questions = parseQuestions(fullText);
 
@@ -231,7 +228,6 @@ Respuesta correcta: c</pre>
         return;
       }
 
-      // Guardar examen en la biblioteca
       const exam = {
         id: Date.now().toString(),
         name: file.name,
@@ -309,14 +305,8 @@ Respuesta correcta: c</pre>
     return questions;
   }
 
-  // === GESTIÓN DE LA BIBLIOTECA ===
-
   function getExams() {
-    try {
-      return JSON.parse(localStorage.getItem('examLibrary') || '[]');
-    } catch (e) {
-      return [];
-    }
+    try { return JSON.parse(localStorage.getItem('examLibrary') || '[]'); } catch (e) { return []; }
   }
 
   function saveExam(exam) {
@@ -347,7 +337,7 @@ Respuesta correcta: c</pre>
       return;
     }
 
-    let html = '<h2 style="margin:20px 0 15px; color:#16213e;">📚 Mis exámenes</h2>';
+    let html = '<h2 style="margin:20px 0 15px; color:#16213e;"> Mis exámenes</h2>';
     exams.forEach(exam => {
       const bestAttempt = exam.attempts.length > 0 ? Math.max(...exam.attempts.map(a => a.percentage)) : null;
       const bestScoreHtml = bestAttempt !== null ? `<span class="best-score">Mejor: ${bestAttempt}%</span>` : '';
@@ -361,7 +351,7 @@ Respuesta correcta: c</pre>
           </div>
           <div class="exam-actions">
             <button class="btn btn-primary btn-small" onclick="startExam('${exam.id}')">▶️ Hacer test</button>
-            <button class="btn btn-danger btn-small" onclick="deleteExam('${exam.id}')">🗑️ Eliminar</button>
+            <button class="btn btn-danger btn-small" onclick="deleteExam('${exam.id}')">️ Eliminar</button>
           </div>
         </div>
       `;
