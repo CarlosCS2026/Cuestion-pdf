@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preguntas desde PDF v10</title>
+<title>Preguntas desde PDF v11</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -72,6 +72,9 @@
   .exam-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .best-score { display: inline-block; background: #d4f5f0; color: #1a936f; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-top: 5px; }
   .empty-library { text-align: center; color: #999; padding: 40px 20px; font-style: italic; }
+  .format-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 8px; }
+  .badge-pdf { background: #fee2e2; color: #dc2626; }
+  .badge-txt { background: #d1fae5; color: #059669; }
 
   @media (max-width: 600px) { 
     .container { padding: 12px; } 
@@ -88,24 +91,25 @@
 <body>
 
 <div class="container">
-  <h1>📝 Preguntas desde PDF v10</h1>
+  <h1> Preguntas desde PDF/TXT v11</h1>
   <p class="subtitle">Biblioteca de exámenes interactivos</p>
 
   <div id="librarySection">
     <div class="upload-zone" id="dropZone">
       <div class="icon" id="dropIcon">📄</div>
-      <p id="dropText"><strong>Arrastra tu PDF aquí</strong> o haz clic para añadir un examen</p>
-      <input type="file" id="fileInput" accept=".pdf">
+      <p id="dropText"><strong>Arrastra tu PDF o TXT aquí</strong> o haz clic para añadir un examen</p>
+      <input type="file" id="fileInput" accept=".pdf,.txt">
       <br>
       <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Añadir nuevo examen</button>
+      <p style="margin-top:10px; font-size:0.85rem; color:#666;">✅ Acepta PDF y TXT (recomendado)</p>
     </div>
 
     <div class="exam-list" id="examList">
-      <p class="empty-library">No hay exámenes en la biblioteca. Sube tu primer PDF para empezar.</p>
+      <p class="empty-library">No hay exámenes en la biblioteca. Sube tu primer archivo para empezar.</p>
     </div>
 
     <details class="format-help">
-      <summary>📋 Formato esperado del PDF</summary>
+      <summary>📋 Formato esperado</summary>
       <pre>Pregunta 1: ¿Cuál es la capital de Francia?
 a) Londres
 b) Madrid
@@ -113,7 +117,7 @@ c) París
 d) Berlín
 Respuesta correcta: c
 
-(El sistema también detecta automáticamente si las opciones están en la misma línea)</pre>
+💡 <strong>Consejo:</strong> Si tienes problemas con el PDF, copia el texto en un archivo .txt</pre>
     </details>
   </div>
 
@@ -138,7 +142,7 @@ Respuesta correcta: c
     <div id="questionsContainer"></div>
     <div class="submit-area">
       <button class="btn btn-success" onclick="checkAnswers()">✅ Enviar respuestas</button>
-      <button class="btn btn-secondary" onclick="showLibrary()">📚 Volver a la biblioteca</button>
+      <button class="btn btn-secondary" onclick="showLibrary()"> Volver a la biblioteca</button>
     </div>
   </div>
 
@@ -174,8 +178,11 @@ Respuesta correcta: c
 
   dropZone.addEventListener('drop', ev => {
     const file = ev.dataTransfer.files[0];
-    if (file && file.type === 'application/pdf') handleFileSelection(file);
-    else alert('Por favor, sube un archivo PDF válido.');
+    if (file && (file.type === 'application/pdf' || file.name.endsWith('.txt') || file.name.endsWith('.pdf'))) {
+      handleFileSelection(file);
+    } else {
+      alert('Por favor, sube un archivo PDF o TXT.');
+    }
   });
 
   fileInput.addEventListener('change', ev => {
@@ -188,14 +195,51 @@ Respuesta correcta: c
     dropText.innerHTML = `<strong>Procesando "${file.name}"…</strong>`;
     document.getElementById('librarySection').style.display = 'none';
     document.getElementById('loading').style.display = 'block';
-    processFile(file);
+    
+    if (file.name.endsWith('.txt')) {
+      processTXT(file);
+    } else {
+      processPDF(file);
+    }
   }
 
   window.addEventListener('DOMContentLoaded', () => {
     showLibrary();
   });
 
-  async function processFile(file) {
+  // === PROCESAR TXT (MÁS SIMPLE Y FIABLE) ===
+  function processTXT(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const text = e.target.result;
+        const questions = parseQuestions(text);
+        
+        if (questions.length === 0) {
+          showError("No se encontraron preguntas en el archivo TXT. Asegúrate de que sigue el formato correcto.");
+          return;
+        }
+        
+        saveExam({
+          id: Date.now().toString(),
+          name: file.name,
+          date: new Date().toLocaleDateString('es-ES'),
+          questions: questions,
+          attempts: [],
+          format: 'txt'
+        });
+        
+        showLibrary();
+      } catch (err) {
+        console.error(err);
+        showError("Error al leer el TXT: " + err.message);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  // === PROCESAR PDF ===
+  async function processPDF(file) {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -208,44 +252,41 @@ Respuesta correcta: c
         fullText += strings.join('\n') + '\n';
       }
 
-      // === PRE-PROCESAMIENTO v10: CORRECCIÓN AUTOMÁTICA DE FORMATOS ===
-      
-      // 1. Separar preguntas pegadas
+      // Pre-procesamiento
       fullText = fullText.replace(/([^\n])\s*(Pregunta\s+\d+\s*[:.])/gi, '$1\n$2');
-      
-      // 2. NUEVO: Separar opciones que están en la misma línea (ej: "a) Texto b) Texto")
       fullText = fullText.replace(/\s+([b-dB-D])[\.\)]\s/g, '\n$1) ');
-      
-      // 3. NUEVO: Separar la respuesta correcta si está en la misma línea
       fullText = fullText.replace(/\s+(Respuesta\s+correcta\s*:)/gi, '\n$1');
 
       const questions = parseQuestions(fullText);
 
       if (questions.length === 0) {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('debugSection').style.display = 'block';
-        document.getElementById('debugText').textContent = "⚠️ No se encontraron preguntas.\n\n" + fullText.substring(0, 500);
+        showError("No se encontraron preguntas.\n\n" + fullText.substring(0, 500));
         return;
       }
 
-      const exam = {
+      saveExam({
         id: Date.now().toString(),
         name: file.name,
         date: new Date().toLocaleDateString('es-ES'),
         questions: questions,
-        attempts: []
-      };
-
-      saveExam(exam);
+        attempts: [],
+        format: 'pdf'
+      });
+      
       showLibrary();
     } catch (err) {
       console.error(err);
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('debugSection').style.display = 'block';
-      document.getElementById('debugText').textContent = "❌ Error: " + err.message;
+      showError("Error al leer el PDF: " + err.message);
     }
   }
 
+  function showError(msg) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('debugSection').style.display = 'block';
+    document.getElementById('debugText').textContent = msg;
+  }
+
+  // === PARSER UNIVERSAL (FUNCIONA PARA PDF Y TXT) ===
   function parseQuestions(text) {
     const questions = [];
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -305,6 +346,7 @@ Respuesta correcta: c
     return questions;
   }
 
+  // === GESTIÓN DE BIBLIOTECA ===
   function getExams() {
     try { return JSON.parse(localStorage.getItem('examLibrary') || '[]'); } catch (e) { return []; }
   }
@@ -333,25 +375,28 @@ Respuesta correcta: c
     const container = document.getElementById('examList');
 
     if (exams.length === 0) {
-      container.innerHTML = '<p class="empty-library">No hay exámenes en la biblioteca. Sube tu primer PDF para empezar.</p>';
+      container.innerHTML = '<p class="empty-library">No hay exámenes en la biblioteca. Sube tu primer archivo para empezar.</p>';
       return;
     }
 
     let html = '<h2 style="margin:20px 0 15px; color:#16213e;"> Mis exámenes</h2>';
     exams.forEach(exam => {
+      const formatBadge = exam.format === 'txt' 
+        ? '<span class="format-badge badge-txt">TXT</span>' 
+        : '<span class="format-badge badge-pdf">PDF</span>';
       const bestAttempt = exam.attempts.length > 0 ? Math.max(...exam.attempts.map(a => a.percentage)) : null;
       const bestScoreHtml = bestAttempt !== null ? `<span class="best-score">Mejor: ${bestAttempt}%</span>` : '';
       
       html += `
         <div class="exam-card">
           <div class="exam-info">
-            <h3>${escapeHtml(exam.name)}</h3>
-            <p>📅 ${exam.date} · ❓ ${exam.questions.length} preguntas · 📝 ${exam.attempts.length} intentos</p>
+            <h3>${escapeHtml(exam.name)} ${formatBadge}</h3>
+            <p> ${exam.date} · ❓ ${exam.questions.length} preguntas · 📝 ${exam.attempts.length} intentos</p>
             ${bestScoreHtml}
           </div>
           <div class="exam-actions">
             <button class="btn btn-primary btn-small" onclick="startExam('${exam.id}')">▶️ Hacer test</button>
-            <button class="btn btn-danger btn-small" onclick="deleteExam('${exam.id}')">️ Eliminar</button>
+            <button class="btn btn-danger btn-small" onclick="deleteExam('${exam.id}')"> Eliminar</button>
           </div>
         </div>
       `;
@@ -449,7 +494,7 @@ Respuesta correcta: c
     circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
     document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
     document.getElementById('scoreLabel').textContent = `${pct}%`;
-    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? ' ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
