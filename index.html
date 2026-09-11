@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preguntas desde PDF v06</title>
+<title>Preguntas desde PDF v07</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -84,7 +84,7 @@
 <body>
 
 <div class="container">
-  <h1>📝 Preguntas desde PDF v06</h1>
+  <h1>📝 Preguntas desde PDF v07</h1>
   <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
 
   <div id="uploadSection">
@@ -127,7 +127,7 @@ Respuesta correcta: c</pre>
       <details open>
         <summary id="debugTitle">⚠️ No se pudieron leer las preguntas</summary>
         <pre id="debugText" style="margin-top:10px;"></pre>
-        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;">🔄 Volver a intentar</button>
+        <button class="btn btn-primary" onclick="location.reload()" style="margin-top:15px;"> Volver a intentar</button>
       </details>
     </div>
   </div>
@@ -151,7 +151,7 @@ Respuesta correcta: c</pre>
     <div id="reviewContainer"></div>
     <div class="submit-area" style="margin-top:20px;">
       <button class="btn btn-primary" onclick="restartQuiz()">🔄 Repetir este mismo test</button>
-      <button class="btn btn-secondary" onclick="location.reload()">📄 Subir un PDF diferente</button>
+      <button class="btn btn-secondary" onclick="location.reload()"> Subir un PDF diferente</button>
     </div>
   </div>
 </div>
@@ -201,7 +201,7 @@ Respuesta correcta: c</pre>
         fullText += strings.join('\n') + '\n';
       }
 
-      // === PRE-PROCESAMIENTO v06: SEPARACIÓN DE PREGUNTAS PEGADAS ===
+      // === PRE-PROCESAMIENTO v07: SEPARACIÓN DE PREGUNTAS PEGADAS ===
       
       // Separar "Pregunta X:" que venga pegado a otro texto (ej: "Respuesta correcta: b Pregunta 27:")
       fullText = fullText.replace(/([^\n])\s*(Pregunta\s+\d+\s*[:.])/gi, '$1\n$2');
@@ -212,6 +212,8 @@ Respuesta correcta: c</pre>
       // ================================================================
 
       quizData = parseQuestions(fullText);
+
+      console.log('Preguntas encontradas:', quizData.length);
 
       if (quizData.length === 0) {
         document.getElementById('loading').style.display = 'none';
@@ -238,7 +240,6 @@ Respuesta correcta: c</pre>
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
     let currentQ = null;
-    let optionCount = 0;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -248,7 +249,7 @@ Respuesta correcta: c</pre>
       
       if (questionMatch) {
         // Guardar pregunta anterior si está completa
-        if (currentQ && currentQ.correct && optionCount >= 3) {
+        if (currentQ && currentQ.correct && Object.keys(currentQ.options).length >= 2) {
           questions.push(currentQ);
         }
         
@@ -259,7 +260,6 @@ Respuesta correcta: c</pre>
           options: {},
           correct: null
         };
-        optionCount = 0;
         continue;
       }
 
@@ -271,7 +271,6 @@ Respuesta correcta: c</pre>
         const letter = optionMatch[1].toLowerCase();
         const text = optionMatch[2].trim();
         currentQ.options[letter] = text;
-        optionCount++;
         continue;
       }
 
@@ -283,13 +282,13 @@ Respuesta correcta: c</pre>
       }
 
       // 4. Si la línea no encaja con nada, puede ser continuación del texto de la pregunta
-      if (optionCount === 0) {
+      if (Object.keys(currentQ.options).length === 0) {
         currentQ.question += ' ' + line;
       }
     }
 
-    // Añadir la última pregunta si está completa
-    if (currentQ && currentQ.correct && optionCount >= 3) {
+    // === CLAVE: Añadir la última pregunta si está completa ===
+    if (currentQ && currentQ.correct && Object.keys(currentQ.options).length >= 2) {
       questions.push(currentQ);
     }
 
@@ -372,7 +371,7 @@ Respuesta correcta: c</pre>
     circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
     document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
     document.getElementById('scoreLabel').textContent = `${pct}%`;
-    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? ' ¡Aprobado!' : '📚 Sigue practicando';
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
