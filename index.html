@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preguntas desde PDF v04</title>
+<title>Preguntas desde PDF v05</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -84,7 +84,7 @@
 <body>
 
 <div class="container">
-  <h1>📝 Preguntas desde PDF v04</h1>
+  <h1> Preguntas desde PDF v05</h1>
   <p class="subtitle">Sube un PDF con preguntas y genera un test interactivo</p>
 
   <div id="uploadSection">
@@ -151,7 +151,7 @@ Respuesta correcta: c</pre>
     <div id="reviewContainer"></div>
     <div class="submit-area" style="margin-top:20px;">
       <button class="btn btn-primary" onclick="restartQuiz()">🔄 Repetir este mismo test</button>
-      <button class="btn btn-secondary" onclick="location.reload()">📄 Subir un PDF diferente</button>
+      <button class="btn btn-secondary" onclick="location.reload()"> Subir un PDF diferente</button>
     </div>
   </div>
 </div>
@@ -198,27 +198,27 @@ Respuesta correcta: c</pre>
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         const strings = content.items.map(item => item.str);
-        fullText += strings.join('\n') + '\n';
+        fullText += strings.join(' ') + ' ';
       }
 
-      // === PRE-PROCESAMIENTO v04: SEPARACIÓN AGRESIVA DE PREGUNTAS ===
+      // === PRE-PROCESAMIENTO v05: SEPARACIÓN ULTRA-AGRESIVA ===
       
-      // 1. CLAVE: Separar "Pregunta X:" o "Pregunta X " de cualquier texto anterior
-      //    Esto soluciona el caso "Respuesta correcta: b Pregunta 27: ..."
-      fullText = fullText.replace(/\s+(Pregunta\s+\d+\s*[:.])/gi, '\n$1');
+      // Paso 1: Separar CADA "Pregunta X:" con un salto de línea FORZADO
+      // Esto es CLAVE: busca "Pregunta" seguido de número y separador
+      fullText = fullText.replace(/Pregunta\s+(\d+)\s*[:.]/gi, '\n\nPREGUNTA_$1_MARKER');
       
-      // 2. Separar "Pregunta X" al inicio de línea si viene pegado
-      fullText = fullText.replace(/^([^\n]*?)\s+(Pregunta\s+\d+)/gim, '$1\n$2');
+      // Paso 2: Separar opciones (a), b), c), d))
+      fullText = fullText.replace(/\s+([a-dA-D])\s*[).]/g, '\n$1)');
       
-      // 3. Separar opciones que empiecen con letra y paréntesis/punto
-      fullText = fullText.replace(/\s+([a-dA-D])\s*[.)]\s+/g, '\n$1) ');
+      // Paso 3: Separar "Respuesta correcta: X"
+      fullText = fullText.replace(/\s+Respuesta\s+correcta\s*:\s*([a-dA-D])/gi, '\nRespuesta correcta: $1');
       
-      // 4. Separar "Respuesta correcta: X" del resto
-      fullText = fullText.replace(/\s+(Respuesta\s+(?:correcta)?\s*[:.]\s*[a-dA-D])/gi, '\n$1');
+      // Paso 4: Restaurar el marcador a "Pregunta X:"
+      fullText = fullText.replace(/PREGUNTA_(\d+)_MARKER/g, 'Pregunta $1:');
       
-      // 5. Normalizar espacios y saltos de línea
+      // Paso 5: Limpiar espacios múltiples y normalizar
       fullText = fullText.replace(/[ \t]+/g, ' ');
-      fullText = fullText.replace(/\n\s*\n+/g, '\n');
+      fullText = fullText.replace(/\n\s*\n+/g, '\n\n');
       
       // ================================================================
 
@@ -228,8 +228,8 @@ Respuesta correcta: c</pre>
         document.getElementById('loading').style.display = 'none';
         document.getElementById('debugSection').style.display = 'block';
         
-        let errorMsg = "⚠️ No se encontraron preguntas. Texto extraído (primeras líneas):\n\n";
-        errorMsg += fullText.split('\n').slice(0, 30).join('\n');
+        let errorMsg = "⚠️ No se encontraron preguntas. Texto extraído (primeras 500 caracteres):\n\n";
+        errorMsg += fullText.substring(0, 500);
         
         document.getElementById('debugText').textContent = errorMsg;
         return;
@@ -246,85 +246,62 @@ Respuesta correcta: c</pre>
 
   function parseQuestions(text) {
     const questions = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const blocks = text.split('\n\n').filter(block => block.trim().length > 0);
+    
     let currentQ = null;
-    let pendingOptionLetter = null;
-    let optionCount = 0;
+    let currentOptions = {};
+    let currentAnswer = null;
 
-    for (let i = 0; i < lines.length; i++) {
-      let line = lines[i];
+    for (let block of blocks) {
+      const line = block.trim();
       
-      // Detectar inicio de pregunta: "Pregunta X:" o "Pregunta X "
-      const questionMatch = line.match(/^(?:Pregunta\s*\d+\s*[:.]\s*)?(.+?\?)\s*$/) || 
-                            line.match(/^\d+[\s.:)]\s+(.+)/);
-      
-      if (questionMatch && !line.match(/^[a-dA-D][.)]/i)) {
-        // Guardar pregunta anterior si está completa
-        if (currentQ && currentQ.correct && optionCount >= 2) {
-          questions.push(currentQ);
+      // Detectar inicio de pregunta: "Pregunta X: texto?"
+      const questionMatch = line.match(/^Pregunta\s*\d+\s*[:.]\s*(.+?\?)$/i);
+      if (questionMatch) {
+        // Si ya teníamos una pregunta completa, guardarla
+        if (currentQ && currentAnswer && Object.keys(currentOptions).length >= 2) {
+          questions.push({
+            id: questions.length,
+            question: currentQ,
+            options: currentOptions,
+            correct: currentAnswer
+          });
         }
         
-        currentQ = { 
-          id: questions.length, 
-          question: (questionMatch[1] || questionMatch[0]).trim(), 
-          options: {}, 
-          correct: null 
-        };
-        pendingOptionLetter = null;
-        optionCount = 0;
+        // Iniciar nueva pregunta
+        currentQ = questionMatch[1].trim();
+        currentOptions = {};
+        currentAnswer = null;
         continue;
       }
 
-      if (!currentQ) continue;
-
-      // Opción partida: letra en una línea, texto en la siguiente
-      if (pendingOptionLetter && line.match(/^[.)]\s*(.*)/)) {
-        currentQ.options[pendingOptionLetter] = line.match(/^[.)]\s*(.*)/)[1].trim();
-        pendingOptionLetter = null;
-        optionCount++;
-        continue;
-      }
-
-      // Opción normal: "a) Texto" o "a. Texto"
-      const optionMatch = line.match(/^([a-dA-D])\s*[.)]\s*(.+)/);
+      // Detectar opciones: "a) texto" o "a. texto"
+      const optionMatch = line.match(/^([a-dA-D])\)\s*(.+)$/);
       if (optionMatch) {
-        pendingOptionLetter = optionMatch[1].toLowerCase();
-        currentQ.options[pendingOptionLetter] = optionMatch[2].trim();
-        optionCount++;
+        const letter = optionMatch[1].toLowerCase();
+        const text = optionMatch[2].trim();
+        currentOptions[letter] = text;
         continue;
       }
 
-      // Letra suelta
-      if (line.match(/^[a-dA-D]$/)) {
-        pendingOptionLetter = line.toLowerCase();
-        continue;
-      }
-
-      // Respuesta correcta
-      const answerMatch = line.match(/(?:Respuesta\s*(?:correcta)?|Soluci[oó]n|Correcta|Resp)\s*[:.)]?\s*([a-dA-D])/i);
+      // Detectar respuesta correcta
+      const answerMatch = line.match(/^Respuesta\s+correcta\s*:\s*([a-dA-D])$/i);
       if (answerMatch) {
-        currentQ.correct = answerMatch[1].toLowerCase();
-        continue;
-      }
-
-      // Continuación de texto de opción
-      if (pendingOptionLetter && currentQ.options[pendingOptionLetter]) {
-        currentQ.options[pendingOptionLetter] += ' ' + line;
-        continue;
-      }
-      
-      // Continuación de texto de pregunta (solo si aún no hay opciones)
-      if (optionCount === 0 && !pendingOptionLetter) {
-        currentQ.question += ' ' + line;
+        currentAnswer = answerMatch[1].toLowerCase();
         continue;
       }
     }
 
-    // Añadir última pregunta si está completa
-    if (currentQ && currentQ.correct && optionCount >= 2) {
-      questions.push(currentQ);
+    // Añadir la última pregunta si está completa
+    if (currentQ && currentAnswer && Object.keys(currentOptions).length >= 2) {
+      questions.push({
+        id: questions.length,
+        question: currentQ,
+        options: currentOptions,
+        correct: currentAnswer
+      });
     }
-    
+
     return questions;
   }
 
@@ -404,7 +381,7 @@ Respuesta correcta: c</pre>
     circle.className = `score-circle ${pct >= 50 ? 'pass' : 'fail'}`;
     document.getElementById('scoreNumber').textContent = `${score}/${quizData.length}`;
     document.getElementById('scoreLabel').textContent = `${pct}%`;
-    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? '👍 ¡Aprobado!' : '📚 Sigue practicando';
+    document.getElementById('scoreMessage').textContent = pct >= 90 ? '🏆 ¡Excelente!' : pct >= 70 ? '👏 ¡Muy bien!' : pct >= 50 ? ' ¡Aprobado!' : '📚 Sigue practicando';
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
